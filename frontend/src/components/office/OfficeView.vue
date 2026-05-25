@@ -9,7 +9,6 @@
 
     <div class="w-full h-full pt-16 relative">
       <svg viewBox="0 0 900 550" class="w-full h-full">
-<<<<<<< HEAD
         <!-- 背景渐变定义 -->
         <defs>
           <linearGradient id="floorGrad" x1="0%" y1="0%" x2="0%" y2="100%">
@@ -78,52 +77,16 @@
             :x="seat.x" 
             :y="seat.y"
           />
+          <!-- 增强点击区域 -->
           <rect 
             :x="seat.x - 30" 
             :y="seat.y - 20" 
             width="60" 
             height="70" 
-        <rect x="0" y="0" width="900" height="550" fill="#fffaf8" />
-        <g stroke="#d4c4b7" stroke-width="1.5" stroke-dasharray="4,2">
-          <line x1="0" y1="450" x2="900" y2="450" />
-          <line x1="0" y1="480" x2="900" y2="480" />
-          <line x1="0" y1="510" x2="900" y2="510" />
-        </g>
-        <g>
-          <rect x="820" y="320" width="60" height="130" rx="4" fill="#e8d5c4" stroke="#a88970" stroke-width="3" />
-          <circle cx="865" cy="390" r="5" fill="#8b6b4d" />
-        </g>
-        <ellipse cx="450" cy="120" rx="180" ry="60" fill="#fef3e7" stroke="#c4a07c" stroke-width="3.5" />
-        <ellipse cx="450" cy="120" rx="160" ry="48" fill="#fdf7f2" stroke="#d4b595" stroke-width="1.5" />
-        <g transform="translate(450, 65)">
-          <ellipse cx="0" cy="0" rx="28" ry="14" fill="#ffedd5" stroke="#d97706" stroke-width="2.5" />
-          <rect x="-20" y="-35" width="40" height="18" rx="4" fill="#fed7aa" stroke="#f97316" stroke-width="2" />
-        </g>
-        <g>
-          <rect x="60" y="260" width="160" height="45" rx="8" fill="#faf5ef" stroke="#c2a07c" stroke-width="2.5" />
-          <rect x="60" y="340" width="160" height="45" rx="8" fill="#faf5ef" stroke="#c2a07c" stroke-width="2.5" />
-          <rect x="680" y="260" width="160" height="45" rx="8" fill="#faf5ef" stroke="#c2a07c" stroke-width="2.5" />
-          <rect x="680" y="340" width="160" height="45" rx="8" fill="#faf5ef" stroke="#c2a07c" stroke-width="2.5" />
-        </g>
-
-        <!-- 8个空座位可点击区域 -->
-        <g 
-          v-for="(seat, idx) in allSeats" 
-          :key="'seat-click-' + idx"
-          @click="onSeatClick(idx)"
-          class="cursor-pointer"
-        >
-          <rect 
-            :x="seat.x - 35" 
-            :y="seat.y - 60" 
-            width="70" 
-            height="110" 
->>>>>>> 321ea3cbb2142824b9d80a9cd3ae5cd602b35a84
             fill="transparent" 
           />
         </g>
 
-<<<<<<< HEAD
         <!-- 2. 渲染角色 (中间层) -->
         <!-- 群主小人 -->
         <StickFigure 
@@ -220,66 +183,6 @@
           color="#10b981"
           :isBack="false"
         />
-=======
-        <g fill="#fef3e7" stroke="#a16207" stroke-width="2">
-          <rect x="50" y="235" width="24" height="16" rx="4" />
-          <rect x="50" y="315" width="24" height="16" rx="4" />
-          <rect x="202" y="235" width="24" height="16" rx="4" />
-          <rect x="202" y="315" width="24" height="16" rx="4" />
-          <rect x="676" y="235" width="24" height="16" rx="4" />
-          <rect x="676" y="315" width="24" height="16" rx="4" />
-          <rect x="826" y="235" width="24" height="16" rx="4" />
-          <rect x="826" y="315" width="24" height="16" rx="4" />
-        </g>
-
-        <!-- 群主小人 -->
-        <g class="cursor-pointer" transform="translate(450, 35)">
-          <circle cx="0" cy="-30" r="13" fill="#fff" stroke="#374151" stroke-width="2.5" />
-          <path d="M -12 -15 L 0 0 L 12 -15" stroke="#374151" stroke-width="3" fill="none" stroke-linecap="round" />
-          <line x1="0" y1="0" x2="0" y2="22" stroke="#374151" stroke-width="3" stroke-linecap="round" />
-          <line x1="-15" y1="6" x2="15" y2="6" stroke="#374151" stroke-width="3" stroke-linecap="round" />
-          <line x1="0" y1="22" x2="-12" y2="42" stroke="#374151" stroke-width="3" stroke-linecap="round" />
-          <line x1="0" y1="22" x2="12" y2="42" stroke="#374151" stroke-width="3" stroke-linecap="round" />
-          <path d="M -10 -48 L -6 -58 L -2 -48 L 2 -58 L 6 -48 L 10 -58 L 14 -48 Z" fill="#fcd34d" stroke="#d97706" stroke-width="1.5" />
-        </g>
-
-        <!-- 动态渲染普通成员小人 根据 seatIndex 直接取位置 顺序完全不变 -->
-        <g 
-          v-for="member in nonOwnerMembersWithSeat" 
-          :key="'member-' + member.id"
-          class="cursor-pointer"
-          :transform="getMemberTransformBySeat(member.seatIndex!)"
-          @click="onMemberClick(member, $event)"
-        >
-          <circle cx="0" cy="-25" r="11" fill="#fff" stroke="#4b5563" stroke-width="2.2" />
-          <path d="M -10 -12 L 0 2 L 10 -12" stroke="#4b5563" stroke-width="2.5" fill="none" stroke-linecap="round" />
-          <line x1="0" y1="2" x2="0" y2="22" stroke="#4b5563" stroke-width="2.5" stroke-linecap="round" />
-          <line x1="-11" y1="9" x2="11" y2="9" stroke="#4b5563" stroke-width="2.5" stroke-linecap="round" />
-          <line x1="0" y1="22" x2="-9" y2="38" stroke="#4b5563" stroke-width="2.5" stroke-linecap="round" />
-          <line x1="0" y1="22" x2="9" y2="38" stroke="#4b5563" stroke-width="2.5" stroke-linecap="round" />
-        </g>
-
-        <!-- 正在飞出去的人物动画 -->
-        <g v-if="showFlyingMan" :transform="flyingManPos">
-          <circle cx="0" cy="-25" r="11" fill="#fff" stroke="#f97316" stroke-width="2.2" />
-          <path d="M -10 -12 L 0 2 L 10 -12" stroke="#f97316" stroke-width="2.5" fill="none" stroke-linecap="round" />
-          <line x1="0" y1="2" x2="0" y2="22" stroke="#f97316" stroke-width="2.5" stroke-linecap="round" />
-          <line x1="-11" y1="9" x2="11" y2="9" stroke="#f97316" stroke-width="2.5" stroke-linecap="round" />
-          <line x1="0" y1="22" x2="-9" y2="38" stroke="#f97316" stroke-width="2.5" stroke-linecap="round" />
-          <line x1="0" y1="22" x2="9" y2="38" stroke="#f97316" stroke-width="2.5" stroke-linecap="round" />
-          <text y="-35" x="-10" font-size="14">💨</text>
-        </g>
-
-        <!-- 正在走进来的人物动画 -->
-        <g v-if="showWalkingMan" :transform="walkingManPos">
-          <circle cx="0" cy="-25" r="11" fill="#ecfdf5" stroke="#10b981" stroke-width="2.2" />
-          <path d="M -10 -12 L 0 2 L 10 -12" stroke="#10b981" stroke-width="2.5" fill="none" stroke-linecap="round" />
-          <line x1="0" y1="2" x2="0" y2="22" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" />
-          <line x1="-11" y1="9" x2="11" y2="9" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" />
-          <line x1="0" y1="22" x2="-9" y2="38" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" />
-          <line x1="0" y1="22" x2="9" y2="38" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" />
-        </g>
->>>>>>> 321ea3cbb2142824b9d80a9cd3ae5cd602b35a84
       </svg>
     </div>
 
@@ -337,12 +240,9 @@
 import { ref, computed, onUnmounted } from 'vue'
 import { useChatStore } from '../../stores/chat'
 import type { OfficeMember } from '../../stores/chat'
-<<<<<<< HEAD
 import StickFigure from './StickFigure.vue'
 import OfficeChair from './OfficeChair.vue'
 import gsap from 'gsap'
-=======
->>>>>>> 321ea3cbb2142824b9d80a9cd3ae5cd602b35a84
 
 const chatStore = useChatStore()
 const showMemberInfoPanel = ref(false)
@@ -352,7 +252,6 @@ const clickSeatIndex = ref(-1)
 const panelX = ref(0)
 const panelY = ref(0)
 
-<<<<<<< HEAD
 // 角色状态跟踪
 const memberShockedState = ref<Record<string, boolean>>({}) // 受惊状态
 const isOwnerKicking = ref(false)
@@ -368,18 +267,6 @@ const allSeats = [
   { x: 700, y: 430 },
   { x: 830, y: 240 },
   { x: 830, y: 430 }
-=======
-// 8个座位位置
-const allSeats = [
-  { x: 200, y: 285 },
-  { x: 200, y: 365 },
-  { x: 70, y: 285 },
-  { x: 70, y: 365 },
-  { x: 700, y: 285 },
-  { x: 700, y: 365 },
-  { x: 830, y: 285 },
-  { x: 830, y: 365 }
->>>>>>> 321ea3cbb2142824b9d80a9cd3ae5cd602b35a84
 ]
 
 const nonOwnerMembers = computed(() => {
@@ -435,7 +322,6 @@ const closeAllPanels = () => {
   clickedMember.value = null
 }
 
-<<<<<<< HEAD
 // 踢飞动画 - GSAP版
 const showFlyingMan = ref(false)
 const idToKick = ref('')
@@ -452,31 +338,11 @@ const flyingManTransform = computed(() => {
   const { x, y, rotation, scale } = flyState.value
   return `translate(${x}, ${y}) scale(${scale}) rotate(${rotation})`
 })
-=======
-// 踢飞动画
-const showFlyingMan = ref(false)
-const flyP = ref(0)
-const flyStartPos = ref({ x: 0, y: 0 })
-const flyVector = ref({ x: 0, y: 0 })
-const idToKick = ref('')
-
-const flyingManPos = computed(() => {
-  const p = flyP.value
-  const x = flyStartPos.value.x + flyVector.value.x * p
-  const y = flyStartPos.value.y + flyVector.value.y * p - Math.sin(p * Math.PI) * 100 // 增加一点抛物线感
-  const scale = 1 - p * 0.5 // 飞远变小
-  const rotate = p * 720 // 旋转
-  return `translate(${x}, ${y}) scale(${scale}) rotate(${rotate})`
-})
-
-let flyingTimer: any = null
->>>>>>> 321ea3cbb2142824b9d80a9cd3ae5cd602b35a84
 
 const doKickNow = (memberId: string) => {
   const member = chatStore.officeMembers.find(m => m.id === memberId)
   if (!member || member.seatIndex === undefined) return
 
-<<<<<<< HEAD
   // 此时不设置 idToKick，让他在原位待着
   flyingMemberRole.value = member.role as 'admin' | 'member'
   const startPos = allSeats[member.seatIndex]
@@ -608,83 +474,6 @@ onUnmounted(() => {
   gsap.killTweensOf(flyState.value)
   gsap.killTweensOf(walkState.value)
   gsap.killTweensOf(ownerPos.value)
-=======
-  idToKick.value = memberId
-  const startPos = allSeats[member.seatIndex]
-  flyStartPos.value = { ...startPos }
-
-  // 随机飞出方向
-  const angle = Math.random() * Math.PI * 2
-  const distance = 600 + Math.random() * 200
-  flyVector.value = {
-    x: Math.cos(angle) * distance,
-    y: Math.sin(angle) * distance
-  }
-
-  showFlyingMan.value = true
-  flyP.value = 0
-  closeAllPanels()
-
-  const total = 25
-  let step = 0
-  if (flyingTimer) clearInterval(flyingTimer)
-  flyingTimer = setInterval(() => {
-    step++
-    flyP.value = step / total
-    if (step >= total) {
-      clearInterval(flyingTimer)
-      chatStore.removeMember(idToKick.value)
-      showFlyingMan.value = false
-      flyP.value = 0
-      idToKick.value = ''
-    }
-  }, 24)
-}
-
-// 走进来动画 门口坐标
-const DOOR_POS = { x: 850, y: 390 }
-const showWalkingMan = ref(false)
-const walkP = ref(0)
-const idToAdd = ref('')
-const walkingManPos = computed(() => {
-  const idx = clickSeatIndex.value !== -1 ? clickSeatIndex.value : 0
-  const targetPos = allSeats[idx]
-  const p = walkP.value
-  // 从门口走到座位
-  const x = DOOR_POS.x - p * (DOOR_POS.x - targetPos.x)
-  const y = DOOR_POS.y - p * (DOOR_POS.y - targetPos.y)
-  // 走路时的晃动感
-  const bounce = Math.abs(Math.sin(p * 10 * Math.PI)) * 5
-  return `translate(${x}, ${y - bounce})`
-})
-let walkingTimer: any = null
-
-const doInviteToSeat = (userId: string) => {
-  idToAdd.value = userId
-  showWalkingMan.value = true
-  walkP.value = 0
-  const toSeat = clickSeatIndex.value !== -1 ? clickSeatIndex.value : 0
-  closeAllPanels()
-  const total = 30
-  let step = 0
-  if (walkingTimer) clearInterval(walkingTimer)
-  walkingTimer = setInterval(() => {
-    step++
-    walkP.value = step / total
-    if (step >= total) {
-      clearInterval(walkingTimer)
-      chatStore.inviteMember(idToAdd.value, toSeat)
-      showWalkingMan.value = false
-      walkP.value = 0
-      idToAdd.value = ''
-    }
-  }, 22)
-}
-
-onUnmounted(() => {
-  if (flyingTimer) clearInterval(flyingTimer)
-  if (walkingTimer) clearInterval(walkingTimer)
->>>>>>> 321ea3cbb2142824b9d80a9cd3ae5cd602b35a84
 })
 </script>
 
