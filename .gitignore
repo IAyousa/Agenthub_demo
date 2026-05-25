@@ -10,6 +10,12 @@ lerna-debug.log*
 # Dependencies
 node_modules/
 frontend/node_modules/
+target/
+__pycache__/
+*.pyc
+.venv/
+venv/
+.m2
 
 # IDE
 .vscode/
@@ -21,6 +27,8 @@ frontend/node_modules/
 dist/
 frontend/dist/
 frontend/dist-ssr/
+artifacts/
+backend-java/artifacts/
 
 # OS files
 .DS_Store

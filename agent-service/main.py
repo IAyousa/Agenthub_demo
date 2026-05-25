@@ -1,17 +1,18 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.endpoints import agents, conversations, messages, artifacts
+from config import settings
 
 app = FastAPI(
-    title="Agenthub API",
-    description="Multi-Agent Collaboration Platform API",
-    version="1.0.0"
+    title=settings.APP_TITLE,
+    version=settings.APP_VERSION,
+    description="Multi-Agent Collaboration Platform API"
 )
 
 # CORS configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Adjust in production
+    allow_origins=settings.ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

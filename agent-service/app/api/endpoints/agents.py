@@ -4,4 +4,4 @@ router = APIRouter()
 
 @router.get("/")
 async def get_agents():
-    return []
+    return [{"id": "1", "name": "Mock Agent"}]
