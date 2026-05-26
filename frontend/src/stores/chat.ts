@@ -28,92 +28,106 @@ export interface OfficeMember {
   isRemoving?: boolean
 }
 
+export interface Office {
+  id: string
+  name: string
+  description?: string
+  theme: string
+  maxMembers: number
+  members: OfficeMember[]
+  availableUsers: OfficeMember[]
+  createdAt: string
+  ownerId: string
+}
+
 export type AppView = 'chat' | 'office'
 
 export const useChatStore = defineStore('chat', () => {
   const currentConversationId = ref<string>('orchestrator')
   const mobileView = ref<'list' | 'chat'>('list')
   const currentView = ref<AppView>('chat')
-  const conversations = ref<Record<string, Conversation>>({
-    'orchestrator': {
-      id: 'orchestrator',
-      title: 'Orchestrator Agent',
-      messages: [
-        {
-          id: 'welcome',
-          role: 'assistant',
-          type: 'text',
-          content: '你好！我是 Multi-Agent Orchestrator。我可以协调多个专业 Agent 帮助你完成任务。',
-          created_at: new Date().toISOString()
-        }
-      ]
-    },
-    'coder': {
-      id: 'coder',
-      title: '代码助手 (Coder)',
-      messages: [
-        {
-          id: 'welcome-coder',
-          role: 'assistant',
-          type: 'text',
-          content: '你好！我是代码专家，有什么编程问题可以问我。',
-          created_at: new Date().toISOString()
-        },
-        {
-          id: 'example-code',
-          role: 'assistant',
-          type: 'code',
-          content: 'export function hello() {\n  console.log("Hello from Monaco!");\n}',
-          metadata: {
-            language: 'typescript'
-          },
-          created_at: new Date().toISOString()
-        },
-        {
-          id: 'example-artifact',
-          role: 'assistant',
-          type: 'artifact_preview',
-          content: '<html>\n<body style="display:flex;justify-content:center;align-items:center;height:100vh;margin:0;background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);color:white;font-family:sans-serif;">\n  <div style="text-align:center;padding:40px;background:rgba(255,255,255,0.1);backdrop-filter:blur(10px);border-radius:20px;box-shadow:0 10px 30px rgba(0,0,0,0.2);">\n    <h1 style="margin:0;font-size:3em;">Hello Artifact!</h1>\n    <p style="opacity:0.8;margin-top:10px;">This is a live preview rendered in an iframe.</p>\n    <button onclick="alert(\'Clicked!\')" style="margin-top:20px;padding:10px 25px;border:none;border-radius:50px;background:white;color:#764ba2;font-weight:bold;cursor:pointer;transition:transform 0.2s;" onmouseover="this.style.transform=\'scale(1.05)\'" onmouseout="this.style.transform=\'scale(1)\'">Interact With Me</button>\n  </div>\n</body>\n</html>',
-          metadata: {
-            title: 'Welcome Card',
-            language: 'html'
-          },
-          created_at: new Date().toISOString()
-        }
-      ]
-    },
-    'designer': {
-      id: 'designer',
-      title: '设计专家 (Designer)',
-      messages: [
-        {
-          id: 'welcome-designer',
-          role: 'assistant',
-          type: 'text',
-          content: '你好！我是设计专家，我可以帮你优化 UI/UX。',
-          created_at: new Date().toISOString()
-        }
+  
+  // 办公室管理
+  const offices = ref<Office[]>([
+    {
+      id: 'office-1',
+      name: '默认办公室',
+      description: '团队协作空间',
+      theme: 'modern',
+      maxMembers: 8,
+      createdAt: new Date().toISOString(),
+      ownerId: '1',
+      members: [
+        { id: '1', name: '你', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix', role: 'owner', status: 'online', lastActive: '刚刚' },
+        { id: '2', name: '张小明', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=xiaoming', role: 'admin', status: 'online', lastActive: '2分钟前', seatIndex: 0 },
+        { id: '3', name: '李小红', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=xiaohong', role: 'member', status: 'away', lastActive: '15分钟前', seatIndex: 1 },
+        { id: '4', name: '王大伟', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=dawei', role: 'member', status: 'offline', lastActive: '1小时前', seatIndex: 2 },
+      ],
+      availableUsers: [
+        { id: 'u100', name: '陈静静', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=jingjing', role: 'member', status: 'online' },
+        { id: 'u101', name: '刘先生', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=liu', role: 'member', status: 'online' },
+        { id: 'u102', name: '产品经理', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=pm', role: 'member', status: 'away' },
       ]
     }
+  ])
+  
+  const currentOfficeId = ref<string>('office-1')
+  
+  const currentOffice = computed(() => {
+    return offices.value.find(o => o.id === currentOfficeId.value)
   })
-  const isLoading = ref(false)
-
-  const officeMembers = ref<OfficeMember[]>([
-    { id: '1', name: '你', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix', role: 'owner', status: 'online', lastActive: '刚刚' },
-    { id: '2', name: '张小明', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=xiaoming', role: 'admin', status: 'online', lastActive: '2分钟前', seatIndex: 0 },
-    { id: '3', name: '李小红', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=xiaohong', role: 'member', status: 'away', lastActive: '15分钟前', seatIndex: 1 },
-    { id: '4', name: '王大伟', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=dawei', role: 'member', status: 'offline', lastActive: '1小时前', seatIndex: 2 },
-    { id: '5', name: '代码助手', avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=coder', role: 'member', status: 'online', lastActive: '刚刚', seatIndex: 3 },
-    { id: '6', name: '设计专家', avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=designer', role: 'member', status: 'online', lastActive: '5分钟前', seatIndex: 4 }
-  ])
-
-  const availableUsersToInvite = ref<OfficeMember[]>([
-    { id: 'u100', name: '陈静静', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=jingjing', role: 'member', status: 'online' },
-    { id: 'u101', name: '刘先生', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=liu', role: 'member', status: 'online' },
-    { id: 'u102', name: '产品经理', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=pm', role: 'member', status: 'away' },
-    { id: 'u103', name: '数据分析师', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=data', role: 'member', status: 'offline' }
-  ])
-
+  
+  const officeMembers = computed(() => {
+    return currentOffice.value?.members || []
+  })
+  
+  const availableUsersToInvite = computed(() => {
+    return currentOffice.value?.availableUsers || []
+  })
+  
+  // 切换办公室
+  const switchOffice = (officeId: string) => {
+    if (offices.value.find(o => o.id === officeId)) {
+      currentOfficeId.value = officeId
+    }
+  }
+  
+  // 创建新办公室
+  const createOffice = (data: { name: string; description: string; maxMembers: number; theme: string }) => {
+    const newOffice: Office = {
+      id: `office-${Date.now()}`,
+      name: data.name,
+      description: data.description,
+      theme: data.theme,
+      maxMembers: data.maxMembers,
+      createdAt: new Date().toISOString(),
+      ownerId: '1',
+      members: [
+        { id: '1', name: '你', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix', role: 'owner', status: 'online', lastActive: '刚刚' }
+      ],
+      availableUsers: [
+        { id: 'u100', name: '陈静静', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=jingjing', role: 'member', status: 'online' },
+        { id: 'u101', name: '刘先生', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=liu', role: 'member', status: 'online' },
+        { id: 'u102', name: '产品经理', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=pm', role: 'member', status: 'away' },
+        { id: 'u103', name: '数据分析师', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=data', role: 'member', status: 'offline' }
+      ]
+    }
+    offices.value.push(newOffice)
+    currentOfficeId.value = newOffice.id
+    return newOffice
+  }
+  
+  // 删除办公室
+  const deleteOffice = (officeId: string) => {
+    const index = offices.value.findIndex(o => o.id === officeId)
+    if (index > -1) {
+      offices.value.splice(index, 1)
+      if (currentOfficeId.value === officeId && offices.value.length > 0) {
+        currentOfficeId.value = offices.value[0].id
+      }
+    }
+  }
+  
   // 找到第一个空位seatIndex
   const findEmptySeat = (): number => {
     const used = officeMembers.value.filter(m => m.seatIndex !== undefined).map(m => m.seatIndex!)
@@ -124,19 +138,21 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   const inviteMember = (userId: string, targetSeatIdx?: number) => {
-    const user = availableUsersToInvite.value.find(u => u.id === userId)
+    if (!currentOffice.value) return
+    const user = currentOffice.value.availableUsers.find(u => u.id === userId)
     if (user) {
       const emptySeat = targetSeatIdx !== undefined ? targetSeatIdx : findEmptySeat()
-      officeMembers.value.push({ ...user, lastActive: '刚刚', seatIndex: emptySeat })
-      availableUsersToInvite.value = availableUsersToInvite.value.filter(u => u.id !== userId)
+      currentOffice.value.members.push({ ...user, lastActive: '刚刚', seatIndex: emptySeat })
+      currentOffice.value.availableUsers = currentOffice.value.availableUsers.filter(u => u.id !== userId)
     }
   }
 
   const removeMember = (memberId: string) => {
-    const member = officeMembers.value.find(m => m.id === memberId)
+    if (!currentOffice.value) return
+    const member = currentOffice.value.members.find(m => m.id === memberId)
     if (member && member.role !== 'owner') {
-      officeMembers.value = officeMembers.value.filter(m => m.id !== memberId)
-      availableUsersToInvite.value.push({ ...member, isInviting: false, isRemoving: false })
+      currentOffice.value.members = currentOffice.value.members.filter(m => m.id !== memberId)
+      currentOffice.value.availableUsers.push({ ...member, isInviting: false, isRemoving: false })
     }
   }
 

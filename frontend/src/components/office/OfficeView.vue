@@ -1,13 +1,72 @@
 <template>
-  <div class="h-full w-full overflow-hidden bg-gradient-to-br from-[#fefefe] to-[#f8fafc] relative">
-    <header class="absolute top-0 left-0 right-0 z-20 h-16 bg-white/70 backdrop-blur-md border-b border-slate-100 px-6 flex items-center justify-between">
-      <div class="flex items-center gap-3">
-        <h1 class="text-lg font-bold text-slate-800">办公室</h1>
-        <span class="text-sm text-slate-500">{{ totalNumber }} 人</span>
+  <div class="h-full w-full overflow-hidden bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 relative">
+    <!-- 精致的顶部导航栏 -->
+    <header class="absolute top-0 left-0 right-0 z-20 h-24 bg-white/80 backdrop-blur-xl border-b border-slate-200/50 px-8 flex flex-col justify-between shadow-sm">
+      <!-- 第一行：标题和操作按钮 -->
+      <div class="flex items-center justify-between pt-4">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+            </svg>
+          </div>
+          <div>
+            <h1 class="text-xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">办公室</h1>
+            <p class="text-xs text-slate-500">{{ currentOffice?.name }}</p>
+          </div>
+        </div>
+        
+        <div class="flex items-center gap-3">
+          <div class="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 rounded-lg">
+            <svg class="w-4 h-4 text-indigo-600" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" />
+            </svg>
+            <span class="text-sm font-semibold text-indigo-600">{{ totalNumber }} 人</span>
+          </div>
+          
+          <button
+            @click="showCreateModal = true"
+            class="px-4 py-2 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-sm font-semibold hover:shadow-lg hover:shadow-indigo-500/30 transition-all duration-200 flex items-center gap-2"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+            </svg>
+            新建
+          </button>
+          
+          <button
+            class="p-2 rounded-lg hover:bg-slate-100 transition-colors"
+            title="设置"
+          >
+            <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          </button>
+        </div>
+      </div>
+      
+      <!-- 第二行：办公室列表选项卡 -->
+      <div class="flex items-center gap-2 pb-3 overflow-x-auto">
+        <button
+          v-for="office in offices"
+          :key="office.id"
+          @click="switchOffice(office.id)"
+          :class="[
+            'px-4 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition-all duration-200 flex items-center gap-2',
+            currentOfficeId === office.id
+              ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-500/30'
+              : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+          ]"
+        >
+          <span class="w-2 h-2 rounded-full" :class="currentOfficeId === office.id ? 'bg-white' : 'bg-slate-400'"></span>
+          {{ office.name }}
+          <span class="text-xs opacity-75">({{ office.members.length }})</span>
+        </button>
       </div>
     </header>
 
-    <div class="w-full h-full pt-16 relative">
+    <div class="w-full h-full pt-24 relative">
       <svg viewBox="0 0 900 550" class="w-full h-full">
         <!-- 背景渐变定义 -->
         <defs>
@@ -233,6 +292,13 @@
       @click="closeAllPanels"
       class="absolute inset-0 z-40"
     ></div>
+
+    <!-- 新建办公室对话框 -->
+    <CreateOfficeModal 
+      :isOpen="showCreateModal"
+      @close="showCreateModal = false"
+      @create="handleCreateOffice"
+    />
   </div>
 </template>
 
@@ -242,15 +308,26 @@ import { useChatStore } from '../../stores/chat'
 import type { OfficeMember } from '../../stores/chat'
 import StickFigure from './StickFigure.vue'
 import OfficeChair from './OfficeChair.vue'
+import CreateOfficeModal from './CreateOfficeModal.vue'
 import gsap from 'gsap'
 
 const chatStore = useChatStore()
 const showMemberInfoPanel = ref(false)
 const showInvitePanel = ref(false)
+const showCreateModal = ref(false)
 const clickedMember = ref<OfficeMember | null>(null)
 const clickSeatIndex = ref(-1)
 const panelX = ref(0)
 const panelY = ref(0)
+
+// 办公室管理
+const offices = computed(() => chatStore.offices)
+const currentOfficeId = computed(() => chatStore.currentOfficeId)
+const currentOffice = computed(() => chatStore.currentOffice)
+
+const switchOffice = (officeId: string) => {
+  chatStore.switchOffice(officeId)
+}
 
 // 角色状态跟踪
 const memberShockedState = ref<Record<string, boolean>>({}) // 受惊状态
@@ -280,7 +357,7 @@ const nonOwnerMembersWithSeat = computed(() => {
   )
 })
 const allGuests = computed(() => chatStore.availableUsersToInvite)
-const totalNumber = computed(() => chatStore.officeMembers.length)
+const totalNumber = computed(() => currentOffice.value?.members.length || 0)
 
 const getMemberTransformBySeat = (seatIdx: number) => {
   const pos = allSeats[seatIdx % 8]
@@ -475,6 +552,12 @@ onUnmounted(() => {
   gsap.killTweensOf(walkState.value)
   gsap.killTweensOf(ownerPos.value)
 })
+
+// 处理新建办公室
+const handleCreateOffice = (data: { name: string; description: string; maxMembers: number; theme: string }) => {
+  chatStore.createOffice(data)
+  showCreateModal.value = false
+}
 </script>
 
 <style scoped>
