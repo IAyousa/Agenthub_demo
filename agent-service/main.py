@@ -27,3 +27,8 @@ app.include_router(artifacts.router, prefix="/api/v1/artifacts", tags=["artifact
 @app.get("/")
 async def root():
     return {"message": "Welcome to Agenthub API", "docs": "/docs"}
+
+
+@app.get("/health")
+async def health():
+    return {"status": "ok", "version": settings.APP_VERSION}
