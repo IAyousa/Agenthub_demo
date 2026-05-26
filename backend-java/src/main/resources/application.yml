@@ -40,6 +40,10 @@ agent:
     url: http://localhost:8000
     timeout: 120000
 
+# CORS 跨域配置
+cors:
+  allowed-origins: http://localhost:5173
+
 # 产物存储路径
 artifact:
   storage:
