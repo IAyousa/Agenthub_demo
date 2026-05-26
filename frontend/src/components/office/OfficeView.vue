@@ -347,7 +347,7 @@ const allSeats = [
 ]
 
 const nonOwnerMembers = computed(() => {
-  return chatStore.officeMembers.filter(m => m.role !== 'owner')
+  return currentOffice.value?.members.filter(m => m.role !== 'owner') || []
 })
 const nonOwnerMembersWithSeat = computed(() => {
   return nonOwnerMembers.value.filter(m => 
@@ -356,7 +356,7 @@ const nonOwnerMembersWithSeat = computed(() => {
     m.id !== idToAdd.value
   )
 })
-const allGuests = computed(() => chatStore.availableUsersToInvite)
+const allGuests = computed(() => currentOffice.value?.availableUsers || [])
 const totalNumber = computed(() => currentOffice.value?.members.length || 0)
 
 const getMemberTransformBySeat = (seatIdx: number) => {
