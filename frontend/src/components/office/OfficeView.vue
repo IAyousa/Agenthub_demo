@@ -26,16 +26,16 @@
           
           <button
             @click="showCreateModal = true"
-            class="px-4 py-2 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-sm font-semibold hover:shadow-lg hover:shadow-indigo-500/30 transition-all duration-200 flex items-center gap-2"
+            class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-sm font-bold hover:shadow-lg hover:shadow-indigo-500/40 transition-all duration-200 transform hover:scale-105 active:scale-95 flex items-center gap-2"
           >
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4" />
             </svg>
-            新建
+            新建办公室
           </button>
           
           <button
-            class="p-2 rounded-lg hover:bg-slate-100 transition-colors"
+            class="p-2.5 rounded-xl hover:bg-slate-100 transition-all duration-200 transform hover:scale-110 active:scale-95"
             title="设置"
           >
             <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -49,83 +49,129 @@
       <!-- 第二行：办公室列表选项卡 -->
       <div class="flex items-center gap-2 pb-3 overflow-x-auto">
         <button
+          v-if="currentOffice"
+          @click="showOwnerDetailModal = true"
+          class="px-3 py-2.5 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 transition-all text-sm font-semibold flex items-center gap-1.5 whitespace-nowrap"
+          title="办公室详情"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          详情
+        </button>
+        <button
           v-for="office in offices"
           :key="office.id"
           @click="switchOffice(office.id)"
           :class="[
-            'px-4 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition-all duration-200 flex items-center gap-2',
+            'px-4 py-2.5 rounded-xl font-bold text-sm whitespace-nowrap transition-all duration-300 flex items-center gap-2 transform',
             currentOfficeId === office.id
-              ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-500/30'
-              : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-500/40 scale-105'
+              : 'bg-slate-100 text-slate-700 hover:bg-slate-200 hover:scale-102 active:scale-95'
           ]"
         >
-          <span class="w-2 h-2 rounded-full" :class="currentOfficeId === office.id ? 'bg-white' : 'bg-slate-400'"></span>
+          <span class="w-2.5 h-2.5 rounded-full" :class="currentOfficeId === office.id ? 'bg-white animate-pulse' : 'bg-slate-400'"></span>
           {{ office.name }}
-          <span class="text-xs opacity-75">({{ office.members.length }})</span>
+          <span class="text-xs opacity-75 font-semibold">({{ office.members.length }})</span>
         </button>
       </div>
     </header>
 
     <div class="w-full h-full pt-24 relative">
-      <svg viewBox="0 0 900 550" class="w-full h-full">
+      <svg viewBox="0 0 900 550" class="w-full h-full" @click="onSceneClick">
         <!-- 背景渐变定义 -->
         <defs>
           <linearGradient id="floorGrad" x1="0%" y1="0%" x2="0%" y2="100%">
             <stop offset="0%" style="stop-color:#f8fafc;stop-opacity:1" />
-            <stop offset="100%" style="stop-color:#f1f5f9;stop-opacity:1" />
+            <stop offset="50%" style="stop-color:#f1f5f9;stop-opacity:1" />
+            <stop offset="100%" style="stop-color:#e0e7ff;stop-opacity:0.6" />
           </linearGradient>
           <radialGradient id="impactGrad">
-            <stop offset="0%" style="stop-color:#fb923c;stop-opacity:0.8" />
+            <stop offset="0%" style="stop-color:#fb923c;stop-opacity:0.9" />
             <stop offset="100%" style="stop-color:#fb923c;stop-opacity:0" />
           </radialGradient>
           <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
             <feGaussianBlur in="SourceAlpha" stdDeviation="3" />
-            <feOffset dx="2" dy="2" result="offsetblur" />
+            <feOffset dx="2" dy="3" result="offsetblur" />
             <feComponentTransfer>
-              <feFuncA type="linear" slope="0.2" />
+              <feFuncA type="linear" slope="0.25" />
             </feComponentTransfer>
             <feMerge>
               <feMergeNode />
               <feMergeNode in="SourceGraphic" />
             </feMerge>
           </filter>
+          <filter id="deepShadow" x="-30%" y="-30%" width="160%" height="160%">
+            <feGaussianBlur in="SourceAlpha" stdDeviation="5" />
+            <feOffset dx="3" dy="5" result="offsetblur" />
+            <feComponentTransfer>
+              <feFuncA type="linear" slope="0.35" />
+            </feComponentTransfer>
+            <feMerge>
+              <feMergeNode />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+          <radialGradient id="lightGrad" cx="40%" cy="40%">
+            <stop offset="0%" style="stop-color:#fff;stop-opacity:0.15" />
+            <stop offset="100%" style="stop-color:#fff;stop-opacity:0" />
+          </radialGradient>
         </defs>
 
         <!-- 地面 -->
         <rect x="0" y="0" width="900" height="550" fill="url(#floorGrad)" />
         
-        <!-- 装饰：地毯 -->
-        <ellipse cx="450" cy="400" rx="400" ry="80" fill="#f1f5f9" stroke="#e2e8f0" stroke-width="1" />
+        <!-- 环境光效果 -->
+        <ellipse cx="450" cy="200" rx="500" ry="300" fill="url(#lightGrad)" />
+        
+        <!-- 装饰：地毯 - 增强层次感 -->
+        <ellipse cx="450" cy="400" rx="400" ry="85" fill="#e0e7ff" stroke="#cbd5e1" stroke-width="1" opacity="0.4" />
+        <ellipse cx="450" cy="400" rx="400" ry="80" fill="#f1f5f9" stroke="#e2e8f0" stroke-width="1.5" />
         <ellipse cx="450" cy="400" rx="380" ry="70" fill="#f8fafc" stroke="#e2e8f0" stroke-width="0.5" />
 
         <!-- 墙壁装饰线 -->
-        <g stroke="#cbd5e1" stroke-width="1" stroke-dasharray="8,4" opacity="0.5">
+        <g stroke="#cbd5e1" stroke-width="1" stroke-dasharray="8,4" opacity="0.3">
           <line x1="0" y1="180" x2="900" y2="180" />
         </g>
 
-        <!-- 门口形象优化 -->
-        <g filter="url(#softShadow)">
-          <rect x="820" y="280" width="70" height="180" rx="4" fill="#fff" stroke="#94a3b8" stroke-width="2" />
-          <rect x="830" y="290" width="50" height="160" rx="2" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1" />
-          <circle cx="838" cy="370" r="4" fill="#64748b" />
+        <!-- 门口形象优化 - 增强立体感 -->
+        <g filter="url(#deepShadow)">
+          <rect x="820" y="280" width="70" height="180" rx="4" fill="#fff" stroke="#94a3b8" stroke-width="2.5" />
+          <rect x="830" y="290" width="50" height="160" rx="2" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1.5" />
+          <circle cx="838" cy="370" r="5" fill="#64748b" />
+          <circle cx="838" cy="370" r="3" fill="#94a3b8" />
+          <rect x="825" y="280" width="3" height="180" fill="#cbd5e1" opacity="0.6" />
         </g>
 
-        <!-- 装饰：绿植 (移到后面) -->
-        <g transform="translate(40, 480)" filter="url(#softShadow)">
+        <!-- 装饰：绿植 - 增强生机感 -->
+        <g transform="translate(40, 480)" filter="url(#deepShadow)">
           <rect x="-15" y="0" width="30" height="35" fill="#94a3b8" />
           <path d="M -20 0 L 20 0 L 25 -10 L -25 -10 Z" fill="#64748b" />
           <ellipse cx="0" cy="-25" rx="20" ry="30" fill="#10b981" />
           <ellipse cx="-10" cy="-35" rx="15" ry="25" fill="#059669" />
           <ellipse cx="10" cy="-30" rx="12" ry="20" fill="#34d399" />
+          <ellipse cx="-5" cy="-28" rx="8" ry="12" fill="#6ee7b7" opacity="0.6" />
+          <ellipse cx="8" cy="-22" rx="6" ry="10" fill="#6ee7b7" opacity="0.5" />
         </g>
-        <g transform="translate(860, 480)" filter="url(#softShadow)">
+        <g transform="translate(860, 480)" filter="url(#deepShadow)">
           <rect x="-15" y="0" width="30" height="35" fill="#94a3b8" />
           <path d="M -20 0 L 20 0 L 25 -10 L -25 -10 Z" fill="#64748b" />
           <ellipse cx="0" cy="-30" rx="18" ry="35" fill="#10b981" />
           <ellipse cx="8" cy="-25" rx="12" ry="25" fill="#059669" />
+          <ellipse cx="-8" cy="-32" rx="10" ry="15" fill="#6ee7b7" opacity="0.6" />
+          <ellipse cx="5" cy="-20" rx="7" ry="12" fill="#6ee7b7" opacity="0.5" />
         </g>
 
         <!-- 1. 渲染椅子 (最底层) -->
+        <!-- 主管椅子 -->
+        <g>
+          <OfficeChair 
+            :x="ownerChairPos.x" 
+            :y="ownerChairPos.y"
+          />
+        </g>
+
+        <!-- 普通员工椅子 -->
         <g 
           v-for="(seat, idx) in allSeats" 
           :key="'chair-' + idx"
@@ -136,7 +182,6 @@
             :x="seat.x" 
             :y="seat.y"
           />
-          <!-- 增强点击区域 -->
           <rect 
             :x="seat.x - 30" 
             :y="seat.y - 20" 
@@ -151,10 +196,12 @@
         <StickFigure 
           role="owner" 
           :transform="`translate(${ownerPos.x}, ${ownerPos.y})`" 
-          class="cursor-pointer"
+          :class="['cursor-pointer', isOwnerSelected ? 'opacity-75' : '']"
           color="#334155"
           :isKicking="isOwnerKicking"
+          :isWalking="ownerWalkTarget !== null"
           :isBack="false"
+          @click.stop="onOwnerClick"
         />
 
         <!-- 动态渲染普通成员小人 -->
@@ -170,52 +217,72 @@
         />
 
         <!-- 3. 渲染桌子 (最顶层，实现遮挡，3D 透视风格) -->
-        <!-- 主办公桌 (群主位置) -->
-        <g filter="url(#softShadow)" pointer-events="none">
+        <!-- 主办公桌 (群主位置) - 增强立体感 -->
+        <g filter="url(#deepShadow)" pointer-events="none">
           <!-- 桌面 (梯形透视) -->
-          <path d="M 320 160 L 580 160 L 620 210 L 280 210 Z" fill="#fff" stroke="#64748b" stroke-width="2.5" />
+          <path d="M 320 160 L 580 160 L 620 210 L 280 210 Z" fill="#fff" stroke="#64748b" stroke-width="2.5" stroke-linejoin="round" />
           <!-- 桌边厚度 -->
-          <path d="M 280 210 L 620 210 L 620 220 L 280 220 Z" fill="#e2e8f0" stroke="#64748b" stroke-width="2" />
+          <path d="M 280 210 L 620 210 L 620 222 L 280 222 Z" fill="#e2e8f0" stroke="#64748b" stroke-width="2" stroke-linejoin="round" />
+          <!-- 桌面高光 -->
+          <ellipse cx="450" cy="175" rx="120" ry="20" fill="#fff" opacity="0.3" />
           
           <!-- 桌上装饰：电脑 (3D 倾斜) -->
           <g transform="translate(450, 165)">
-            <rect x="-35" y="-15" width="70" height="40" rx="2" fill="#334155" transform="skewX(-10)" />
+            <rect x="-35" y="-15" width="70" height="40" rx="2" fill="#334155" transform="skewX(-10)" stroke="#475569" stroke-width="1" />
             <rect x="-30" y="-10" width="60" height="30" fill="#475569" transform="skewX(-10)" />
-            <path d="M -15 25 L 15 25 L 20 30 L -20 30 Z" fill="#334155" />
+            <rect x="-28" y="-8" width="56" height="26" fill="#1e293b" transform="skewX(-10)" opacity="0.8" />
+            <path d="M -15 25 L 15 25 L 20 30 L -20 30 Z" fill="#334155" stroke="#475569" stroke-width="1" />
+            <circle cx="-20" cy="27" r="1.5" fill="#60a5fa" opacity="0.8" />
+            <circle cx="20" cy="27" r="1.5" fill="#60a5fa" opacity="0.8" />
           </g>
         </g>
 
-        <!-- 普通办公桌 (3D 透视风格) -->
-        <g filter="url(#softShadow)" pointer-events="none">
+        <!-- 普通办公桌 (3D 透视风格) - 增强细节 -->
+        <g filter="url(#deepShadow)" pointer-events="none">
           <!-- 左侧上排桌 -->
           <g transform="translate(50, 240)">
-            <path d="M 10 0 L 170 0 L 180 40 L 0 40 Z" fill="#fff" stroke="#94a3b8" stroke-width="2" />
-            <path d="M 0 40 L 180 40 L 180 48 L 0 48 Z" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.5" />
+            <path d="M 10 0 L 170 0 L 180 40 L 0 40 Z" fill="#fff" stroke="#94a3b8" stroke-width="2" stroke-linejoin="round" />
+            <path d="M 0 40 L 180 40 L 180 50 L 0 50 Z" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.5" stroke-linejoin="round" />
+            <ellipse cx="90" cy="10" rx="70" ry="8" fill="#fff" opacity="0.25" />
             <!-- 咖啡杯 -->
             <circle cx="150" cy="20" r="5" fill="#fff" stroke="#94a3b8" stroke-width="1.5" />
             <circle cx="150" cy="20" r="3" fill="#92400e" />
+            <path d="M 155 18 L 158 17 L 158 23 L 155 22 Z" fill="#94a3b8" opacity="0.6" />
           </g>
           <!-- 左侧下排桌 -->
           <g transform="translate(50, 430)">
-            <path d="M 10 0 L 170 0 L 180 40 L 0 40 Z" fill="#fff" stroke="#94a3b8" stroke-width="2" />
-            <path d="M 0 40 L 180 40 L 180 48 L 0 48 Z" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.5" />
-            <rect x="30" y="10" width="25" height="20" fill="#e2e8f0" rx="1" />
+            <path d="M 10 0 L 170 0 L 180 40 L 0 40 Z" fill="#fff" stroke="#94a3b8" stroke-width="2" stroke-linejoin="round" />
+            <path d="M 0 40 L 180 40 L 180 50 L 0 50 Z" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.5" stroke-linejoin="round" />
+            <ellipse cx="90" cy="10" rx="70" ry="8" fill="#fff" opacity="0.25" />
+            <rect x="30" y="10" width="25" height="20" fill="#e2e8f0" rx="1" stroke="#cbd5e1" stroke-width="0.5" />
+            <rect x="32" y="12" width="21" height="16" fill="#f1f5f9" rx="0.5" opacity="0.7" />
           </g>
           
           <!-- 右侧上排桌 -->
           <g transform="translate(670, 240)">
-            <path d="M 10 0 L 170 0 L 180 40 L 0 40 Z" fill="#fff" stroke="#94a3b8" stroke-width="2" />
-            <path d="M 0 40 L 180 40 L 180 48 L 0 48 Z" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.5" />
+            <path d="M 10 0 L 170 0 L 180 40 L 0 40 Z" fill="#fff" stroke="#94a3b8" stroke-width="2" stroke-linejoin="round" />
+            <path d="M 0 40 L 180 40 L 180 50 L 0 50 Z" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.5" stroke-linejoin="round" />
+            <ellipse cx="90" cy="10" rx="70" ry="8" fill="#fff" opacity="0.25" />
           </g>
           <!-- 右侧下排桌 -->
           <g transform="translate(670, 430)">
-            <path d="M 10 0 L 170 0 L 180 40 L 0 40 Z" fill="#fff" stroke="#94a3b8" stroke-width="2" />
-            <path d="M 0 40 L 180 40 L 180 48 L 0 48 Z" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.5" />
+            <path d="M 10 0 L 170 0 L 180 40 L 0 40 Z" fill="#fff" stroke="#94a3b8" stroke-width="2" stroke-linejoin="round" />
+            <path d="M 0 40 L 180 40 L 180 50 L 0 50 Z" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.5" stroke-linejoin="round" />
+            <ellipse cx="90" cy="10" rx="70" ry="8" fill="#fff" opacity="0.25" />
           </g>
         </g>
 
-        <!-- 踢人冲击波效果 -->
+        <!-- 踢人冲击波效果 - 增强视觉反馈 -->
         <circle id="kick-impact" cx="0" cy="0" r="30" fill="url(#impactGrad)" style="pointer-events: none; opacity: 0;" />
+        
+        <!-- 踢人时的尘埃效果 -->
+        <g id="dust-particles" style="pointer-events: none; opacity: 0;">
+          <circle cx="0" cy="0" r="2" fill="#fb923c" opacity="0.6" />
+          <circle cx="8" cy="-5" r="1.5" fill="#fb923c" opacity="0.5" />
+          <circle cx="-8" cy="-3" r="1.5" fill="#fb923c" opacity="0.5" />
+          <circle cx="5" cy="6" r="1" fill="#fb923c" opacity="0.4" />
+          <circle cx="-6" cy="5" r="1" fill="#fb923c" opacity="0.4" />
+        </g>
 
         <!-- 正在飞出去的人物动画 (放在桌子上面) -->
         <g v-if="showFlyingMan">
@@ -228,9 +295,16 @@
           <text 
             :x="flyState.x - 20" 
             :y="flyState.y - 40" 
-            font-size="20"
+            font-size="24"
+            font-weight="bold"
             :style="{ opacity: flyState.opacity }"
           >💨</text>
+          <text 
+            :x="flyState.x + 15" 
+            :y="flyState.y - 35" 
+            font-size="20"
+            :style="{ opacity: flyState.opacity * 0.7 }"
+          >💫</text>
         </g>
 
         <!-- 正在走进来的人物动画 -->
@@ -245,43 +319,155 @@
       </svg>
     </div>
 
+    <!-- 群主详情弹窗 -->
+    <Transition name="modal-fade">
+      <div v-if="showOwnerDetailModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+        <div class="bg-white rounded-3xl shadow-2xl w-full max-w-md mx-4 max-h-[80vh] overflow-hidden flex flex-col">
+          <!-- 弹窗头部 -->
+          <div class="bg-gradient-to-r from-indigo-600 to-purple-600 px-6 py-6 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <img :src="currentOffice?.members.find(m => m.role === 'owner')?.avatar" class="w-14 h-14 rounded-xl shadow-lg border-2 border-white" />
+              <div>
+                <h2 class="text-white font-bold text-lg">{{ currentOffice?.name }}</h2>
+                <p class="text-indigo-100 text-sm">办公群聊详情</p>
+              </div>
+            </div>
+            <button 
+              @click="showOwnerDetailModal = false"
+              class="text-white hover:bg-white/20 p-2 rounded-lg transition-all"
+            >
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          <!-- 弹窗内容 -->
+          <div class="flex-1 overflow-y-auto">
+            <!-- 基础信息展示区 -->
+            <div class="px-6 py-4 border-b border-slate-200">
+              <div class="flex items-center justify-between">
+                <span class="text-slate-600 font-semibold">总人数</span>
+                <span class="text-2xl font-bold text-indigo-600">{{ currentOffice?.members.length || 0 }}</span>
+              </div>
+              <p class="text-xs text-slate-500 mt-2">{{ currentOffice?.description }}</p>
+            </div>
+
+            <!-- 成员信息列表区 -->
+            <div class="px-6 py-4">
+              <h3 class="font-bold text-slate-800 mb-3 flex items-center gap-2">
+                <svg class="w-5 h-5 text-indigo-600" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" />
+                </svg>
+                成员列表
+              </h3>
+              <div class="space-y-2 max-h-64 overflow-y-auto">
+                <div 
+                  v-for="member in currentOffice?.members" 
+                  :key="member.id"
+                  class="flex items-center gap-3 p-3 bg-slate-50 rounded-xl hover:bg-slate-100 transition-all"
+                >
+                  <img :src="member.avatar" class="w-10 h-10 rounded-lg shadow-sm" />
+                  <div class="flex-1">
+                    <div class="font-semibold text-slate-800 text-sm">{{ member.name }}</div>
+                    <div class="text-xs text-slate-500">
+                      {{ member.role === 'owner' ? '👑 群主' : member.role === 'admin' ? '👨‍💼 管理员' : '👤 普通成员' }}
+                    </div>
+                  </div>
+                  <span class="text-xs px-2 py-1 rounded-lg" :class="member.status === 'online' ? 'bg-green-100 text-green-700' : member.status === 'away' ? 'bg-yellow-100 text-yellow-700' : 'bg-slate-100 text-slate-700'">
+                    {{ member.status === 'online' ? '在线' : member.status === 'away' ? '离开' : '离线' }}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 操作按钮区 -->
+          <div class="px-6 py-4 border-t border-slate-200 bg-slate-50">
+            <button 
+              @click="showDisbandConfirmModal = true"
+              class="w-full py-3 rounded-xl bg-gradient-to-r from-red-400 to-red-500 text-white font-bold hover:shadow-lg hover:shadow-red-400/40 transition-all duration-200 transform hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
+            >
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              解散办公室
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- 解散办公室二次确认弹窗 -->
+    <Transition name="modal-fade">
+      <div v-if="showDisbandConfirmModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6">
+          <div class="flex items-center justify-center w-12 h-12 rounded-full bg-red-100 mx-auto mb-4">
+            <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4v2m0 4v2M6.343 3.665c-.256-.565.198-1.165.76-1.165h10.794c.562 0 1.016.6.76 1.165l-5.397 11.778c-.256.562-.76.917-1.38.917-.62 0-1.124-.355-1.38-.917L6.343 3.665z" />
+            </svg>
+          </div>
+          <h3 class="text-lg font-bold text-slate-900 text-center mb-2">确认解散办公室？</h3>
+          <p class="text-slate-600 text-center text-sm mb-6">
+            解散后，所有成员将被移除，办公室数据将被永久删除，此操作无法撤销。
+          </p>
+          <div class="flex gap-3">
+            <button 
+              @click="showDisbandConfirmModal = false"
+              class="flex-1 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-bold hover:bg-slate-200 transition-all"
+            >
+              取消
+            </button>
+            <button 
+              @click="confirmDisbandOffice"
+              class="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-red-400 to-red-500 text-white font-bold hover:shadow-lg hover:shadow-red-400/40 transition-all transform hover:scale-105 active:scale-95"
+            >
+              确认解散
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
     <!-- 人物信息小卡片 -->
     <Transition name="pop-fade">
-      <div v-if="showMemberInfoPanel && clickedMember" class="absolute z-50 bg-white/60 backdrop-blur-xl rounded-2xl shadow-2xl p-4 w-48 border border-white/50" :style="memberInfoPanelStyle">
-        <div class="flex items-center gap-2 mb-3">
-          <img :src="clickedMember.avatar" class="w-10 h-10 rounded-xl" />
+      <div v-if="showMemberInfoPanel && clickedMember" class="absolute z-50 bg-white/70 backdrop-blur-2xl rounded-2xl shadow-2xl p-5 w-56 border border-white/60" :style="memberInfoPanelStyle">
+        <div class="flex items-center gap-3 mb-4">
+          <img :src="clickedMember.avatar" class="w-12 h-12 rounded-xl shadow-md" />
           <div>
-            <div class="font-semibold text-slate-800 text-sm">{{ clickedMember.name }}</div>
-            <div class="text-xs text-slate-500">
-              {{ clickedMember.role === 'admin' ? '管理员' : '普通成员' }}
+            <div class="font-bold text-slate-800 text-sm">{{ clickedMember.name }}</div>
+            <div class="text-xs text-slate-500 font-medium">
+              {{ clickedMember.role === 'admin' ? '👨‍💼 管理员' : '👤 普通成员' }}
             </div>
           </div>
         </div>
         <button 
           @click="doKickNow(clickedMember.id)"
-          class="w-full py-2 rounded-xl bg-red-400/80 text-white text-xs font-semibold hover:bg-red-400 transition-colors"
+          class="w-full py-2.5 rounded-xl bg-gradient-to-r from-red-400 to-red-500 text-white text-xs font-bold hover:shadow-lg hover:shadow-red-400/40 transition-all duration-200 transform hover:scale-105 active:scale-95"
         >
-          踢出办公室
+          🚪 踢出办公室
         </button>
       </div>
     </Transition>
 
     <!-- 空位邀请小列表 -->
     <Transition name="pop-fade">
-      <div v-if="showInvitePanel && clickSeatIndex !== -1" class="absolute z-50 bg-white/50 backdrop-blur-md rounded-2xl shadow-xl p-3 w-56 border border-white/40" :style="invitePanelStyle">
-        <div class="text-xs font-bold text-slate-700 mb-2">邀请新成员入座</div>
-        <div class="space-y-2 max-h-52 overflow-y-auto">
+      <div v-if="showInvitePanel && clickSeatIndex !== -1" class="absolute z-50 bg-white/70 backdrop-blur-2xl rounded-2xl shadow-2xl p-4 w-64 border border-white/60" :style="invitePanelStyle">
+        <div class="text-xs font-bold text-slate-700 mb-3 flex items-center gap-2">
+          <span>👥 邀请新成员入座</span>
+        </div>
+        <div class="space-y-2 max-h-56 overflow-y-auto">
           <div 
             v-for="guest in allGuests" 
             :key="guest.id"
             @click="doInviteToSeat(guest.id)"
-            class="flex items-center p-2 bg-white/40 rounded-xl hover:bg-indigo-50/70 cursor-pointer transition-colors"
+            class="flex items-center p-2.5 bg-white/50 rounded-xl hover:bg-indigo-100/70 cursor-pointer transition-all duration-200 transform hover:scale-105 active:scale-95"
           >
-            <img :src="guest.avatar" class="w-7 h-7 rounded-lg mr-2" />
+            <img :src="guest.avatar" class="w-8 h-8 rounded-lg mr-2.5 shadow-sm" />
             <div class="flex-1">
-              <div class="font-medium text-slate-700 text-xs">{{ guest.name }}</div>
+              <div class="font-semibold text-slate-700 text-xs">{{ guest.name }}</div>
             </div>
-            <div class="text-xs text-indigo-600">邀请</div>
+            <div class="text-xs font-bold text-indigo-600 bg-indigo-100/60 px-2 py-1 rounded-lg">邀请</div>
           </div>
         </div>
       </div>
@@ -315,6 +501,8 @@ const chatStore = useChatStore()
 const showMemberInfoPanel = ref(false)
 const showInvitePanel = ref(false)
 const showCreateModal = ref(false)
+const showOwnerDetailModal = ref(false)
+const showDisbandConfirmModal = ref(false)
 const clickedMember = ref<OfficeMember | null>(null)
 const clickSeatIndex = ref(-1)
 const panelX = ref(0)
@@ -332,7 +520,11 @@ const switchOffice = (officeId: string) => {
 // 角色状态跟踪
 const memberShockedState = ref<Record<string, boolean>>({}) // 受惊状态
 const isOwnerKicking = ref(false)
-const ownerPos = ref({ x: 450, y: 100 })
+const ownerPos = ref({ x: 450, y: 140 })
+const ownerChairPos = ref({ x: 450, y: 160 })
+const isOwnerSitting = ref(true)
+const isOwnerSelected = ref(false)
+const ownerWalkTarget = ref<{ x: number; y: number } | null>(null)
 
 // 8个座位位置 - 拉大间距
 const allSeats = [
@@ -366,7 +558,8 @@ const getMemberTransformBySeat = (seatIdx: number) => {
 
 const onMemberClick = (member: OfficeMember, evt: MouseEvent) => {
   if (member.role === 'owner') return
-  const rect = (evt.target as Element).getBoundingClientRect()
+  // 使用 currentTarget 确保获取的是 StickFigure 的整体容器位置，而不是内部某个 path
+  const rect = (evt.currentTarget as Element).getBoundingClientRect()
   panelX.value = Math.min(rect.right + 16, window.innerWidth - 200)
   panelY.value = Math.max(rect.top - 10, 70)
   clickedMember.value = member
@@ -417,49 +610,46 @@ const flyingManTransform = computed(() => {
 })
 
 const doKickNow = (memberId: string) => {
-  const member = chatStore.officeMembers.find(m => m.id === memberId)
+  const member = currentOffice.value?.members.find(m => m.id === memberId)
   if (!member || member.seatIndex === undefined) return
 
-  // 此时不设置 idToKick，让他在原位待着
   flyingMemberRole.value = member.role as 'admin' | 'member'
   const startPos = allSeats[member.seatIndex]
   
   closeAllPanels()
 
-  // 1. 皇冠小人走过去
   const tl = gsap.timeline()
+  
   tl.to(ownerPos.value, {
     x: startPos.x + 40,
     y: startPos.y,
-    duration: 0.8,
-    ease: "power1.inOut",
+    duration: 0.6,
+    ease: "power2.inOut",
     onStart: () => { isOwnerKicking.value = false }
   })
-  // 2. 皇冠小人踢腿
+  
   .to({}, { 
-    duration: 0.2, 
+    duration: 0.12, 
     onStart: () => { 
       isOwnerKicking.value = true
-      // 被踢者进入受惊状态
       memberShockedState.value[memberId] = true
       
-      // 增加全场震动效果
-      gsap.to(".w-full.h-full.pt-16", {
-        x: (Math.random() - 0.5) * 10,
-        y: (Math.random() - 0.5) * 10,
-        duration: 0.1,
-        repeat: 3,
-        yoyo: true
+      gsap.to(".pt-24", {
+        x: (Math.random() - 0.5) * 15,
+        y: (Math.random() - 0.5) * 15,
+        duration: 0.08,
+        repeat: 5,
+        yoyo: true,
+        ease: "power2.inOut",
+        clearProps: "x,y"
       })
     } 
   })
-  // 3. 目标瞬间切换并飞走
+  
   .add(() => {
-    // 关键：在这里设置 idToKick，原位置角色瞬间消失
     idToKick.value = memberId 
-    delete memberShockedState.value[memberId] // 飞走后清理状态
+    delete memberShockedState.value[memberId]
 
-    // 初始化飞走状态
     flyState.value = {
       x: startPos.x,
       y: startPos.y,
@@ -469,22 +659,32 @@ const doKickNow = (memberId: string) => {
     }
     showFlyingMan.value = true
 
-    const angle = -Math.PI / 6 // 向右上角飞，角度更平一些
-    const distance = 1000
+    const angle = -Math.PI / 4
+    const distance = 1400
     
     gsap.to(flyState.value, {
-      duration: 1.0,
+      duration: 0.9,
       x: startPos.x + Math.cos(angle) * distance,
-      y: startPos.y + Math.sin(angle) * distance - 200, // 增加弧度
-      rotation: 1440,
-      scale: 0.05,
+      y: startPos.y + Math.sin(angle) * distance,
+      rotation: 1800,
+      scale: 0.01,
       opacity: 0,
-      ease: "power1.in",
+      ease: "power2.in",
       onStart: () => {
-        // 在踢中瞬间显示一个小小的打击效果
         gsap.fromTo("#kick-impact", 
           { x: startPos.x, y: startPos.y, scale: 0, opacity: 1 }, 
-          { scale: 2.5, opacity: 0, duration: 0.5, ease: "power2.out" }
+          { scale: 3.5, opacity: 0, duration: 0.5, ease: "power2.out" }
+        )
+        
+        gsap.fromTo("#dust-particles",
+          { x: startPos.x, y: startPos.y, opacity: 1 },
+          { 
+            x: startPos.x + (Math.random() - 0.5) * 120,
+            y: startPos.y + (Math.random() - 0.5) * 120,
+            opacity: 0,
+            duration: 0.7,
+            ease: "power1.out"
+          }
         )
       },
       onComplete: () => {
@@ -494,13 +694,13 @@ const doKickNow = (memberId: string) => {
       }
     })
   })
-  // 4. 皇冠小人回原位
+  
   .to(ownerPos.value, {
     x: 450,
-    y: 100,
-    duration: 0.8,
-    delay: 0.4,
-    ease: "power1.inOut",
+    y: 140,
+    duration: 0.6,
+    delay: 0.2,
+    ease: "power2.inOut",
     onStart: () => { isOwnerKicking.value = false }
   })
 }
@@ -534,8 +734,10 @@ const doInviteToSeat = (userId: string) => {
   showWalkingMan.value = true
   closeAllPanels()
 
-  gsap.to(walkState.value, {
-    duration: 1.5,
+  const walkTl = gsap.timeline()
+  
+  walkTl.to(walkState.value, {
+    duration: 1.8,
     x: targetPos.x,
     y: targetPos.y,
     ease: "power1.inOut",
@@ -553,6 +755,70 @@ onUnmounted(() => {
   gsap.killTweensOf(ownerPos.value)
 })
 
+// 主管椅子交互
+const onOwnerChairClick = () => {
+  if (isOwnerSitting.value) {
+    gsap.to(ownerPos.value, {
+      x: 450,
+      y: 100,
+      duration: 0.6,
+      ease: "power2.inOut",
+      onComplete: () => {
+        isOwnerSitting.value = false
+      }
+    })
+  } else {
+    gsap.to(ownerPos.value, {
+      x: ownerChairPos.value.x,
+      y: ownerChairPos.value.y + 20,
+      duration: 0.6,
+      ease: "power2.inOut",
+      onComplete: () => {
+        isOwnerSitting.value = true
+      }
+    })
+  }
+}
+
+// 点击群主头像/名称
+const onOwnerClick = () => {
+  isOwnerSelected.value = !isOwnerSelected.value
+}
+
+// 场景点击处理
+const onSceneClick = (evt: MouseEvent) => {
+  if (!isOwnerSelected.value) return
+  
+  const svg = evt.currentTarget as SVGSVGElement
+  const rect = svg.getBoundingClientRect()
+  const x = ((evt.clientX - rect.left) / rect.width) * 900
+  const y = ((evt.clientY - rect.top) / rect.height) * 550
+  
+  isOwnerSelected.value = false
+  ownerWalkTarget.value = { x, y }
+  
+  const walkTl = gsap.timeline()
+  walkTl.to(ownerPos.value, {
+    duration: 1.5,
+    x: x,
+    y: y,
+    ease: "power1.inOut",
+    onComplete: () => {
+      ownerWalkTarget.value = null
+    }
+  })
+}
+
+// 解散办公室
+const confirmDisbandOffice = () => {
+  if (!currentOffice.value) return
+  
+  const officeId = currentOffice.value.id
+  chatStore.deleteOffice(officeId)
+  showDisbandConfirmModal.value = false
+  showOwnerDetailModal.value = false
+}
+
 // 处理新建办公室
 const handleCreateOffice = (data: { name: string; description: string; maxMembers: number; theme: string }) => {
   chatStore.createOffice(data)
@@ -562,10 +828,28 @@ const handleCreateOffice = (data: { name: string; description: string; maxMember
 
 <style scoped>
 .pop-fade-enter-active, .pop-fade-leave-active {
-  transition: all 0.25s ease;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 .pop-fade-enter-from, .pop-fade-leave-to {
   opacity: 0;
-  transform: scale(0.92);
+  transform: scale(0.85) translateY(-10px);
+}
+
+.pop-fade-enter-to, .pop-fade-leave-from {
+  opacity: 1;
+  transform: scale(1) translateY(0);
+}
+
+.modal-fade-enter-active, .modal-fade-leave-active {
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.modal-fade-enter-from, .modal-fade-leave-to {
+  opacity: 0;
+  transform: scale(0.9);
+}
+
+.modal-fade-enter-to, .modal-fade-leave-from {
+  opacity: 1;
+  transform: scale(1);
 }
 </style>

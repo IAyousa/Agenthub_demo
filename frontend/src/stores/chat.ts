@@ -156,6 +156,37 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
+  // 聊天管理
+  const conversations = ref<Record<string, Conversation>>({
+    'orchestrator': {
+      id: 'orchestrator',
+      title: 'Orchestrator Agent',
+      messages: [
+        {
+          id: 'welcome',
+          role: 'assistant',
+          type: 'text',
+          content: '你好！我是 Multi-Agent Orchestrator。我可以协调多个专业 Agent 帮助你完成任务。',
+          created_at: new Date().toISOString()
+        }
+      ]
+    },
+    'coder': {
+      id: 'coder',
+      title: '代码助手 (Coder)',
+      messages: [
+        {
+          id: 'welcome-coder',
+          role: 'assistant',
+          type: 'text',
+          content: '你好！我是代码专家，有什么编程问题可以问我。',
+          created_at: new Date().toISOString()
+        }
+      ]
+    }
+  })
+  const isLoading = ref(false)
+
   // Artifact State
   const currentArtifact = ref<{
     id: string
@@ -205,8 +236,14 @@ export const useChatStore = defineStore('chat', () => {
     isArtifactVisible,
     mobileView,
     currentView,
+    offices,
+    currentOfficeId,
+    currentOffice,
     officeMembers,
     availableUsersToInvite,
+    switchOffice,
+    createOffice,
+    deleteOffice,
     addMessage,
     selectConversation,
     showArtifact,
