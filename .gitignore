@@ -46,3 +46,6 @@ hs_err_pid*
 postgres_data/
 minio_data/
 redis_data/
+
+# ========== 开发过程记录文档 ==========
+agent_collaboration/
