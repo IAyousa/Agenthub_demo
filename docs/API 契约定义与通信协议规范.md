@@ -104,7 +104,38 @@ POST /conversations
   "timestamp": "2026-05-25T10:30:00"
 }
 ```
-#### 2.2.3 更新会话
+#### 2.2.3 获取会话详情
+```http
+GET /conversations/{id}
+```
+##### 成功响应（200）：
+```json
+{
+  "id": "conv_abc123",
+  "title": "开发博客前端",
+  "type": "direct",
+  "agents": [
+    {
+      "id": "agent_claude_001",
+      "name": "Claude Code",
+      "type": "claude_code",
+      "avatarUrl": "/avatars/claude.png"
+    }
+  ],
+  "createdAt": "2026-05-25T10:30:00",
+  "updatedAt": "2026-05-25T10:30:00"
+}
+```
+##### 字段说明：
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | string | 会话 ID |
+| title | string | 会话标题 |
+| type | string | direct（单聊）或 group（群聊） |
+| agents | array | 该会话关联的 Agent 列表（含名称、头像、类型） |
+| createdAt | string | 创建时间 |
+| updatedAt | string | 最后更新时间 |
+#### 2.2.4 更新会话
 ```http
 PATCH /conversations/{id}
 ```
@@ -124,7 +155,7 @@ PATCH /conversations/{id}
   "updatedAt": "2026-05-25T11:00:00"
 }
 ```
-#### 2.2.4 删除会话
+#### 2.2.5 删除会话
 ```http
 DELETE /conversations/{id}
 ```
@@ -135,7 +166,29 @@ DELETE /conversations/{id}
   "deletedId": "conv_abc123"
 }
 ```
-#### 2.2.5 获取会话历史消息
+#### 2.2.6 修改会话关联 Agent
+```http
+PUT /conversations/{id}/agents
+```
+##### 请求体：
+```json
+{
+  "agentIds": ["agent_claude_001", "agent_codex_001"]
+}
+```
+##### 字段说明：
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| agentIds | string[] | 是 | 替换整个会话的 Agent 列表，传空数组则移除所有 Agent |
+##### 成功响应（200）：
+```json
+{
+  "id": "conv_abc123",
+  "agentIds": ["agent_claude_001", "agent_codex_001"],
+  "updatedAt": "2026-05-25T11:00:00"
+}
+```
+#### 2.2.7 获取会话历史消息
 ```http
 GET /conversations/{id}/messages?page=0&size=50
 ```
@@ -172,6 +225,27 @@ GET /conversations/{id}/messages?page=0&size=50
   "page": 0,
   "size": 50,
   "total": 2
+}
+```
+#### 2.2.8 置顶/取消置顶消息
+```http
+PUT /messages/{id}/pin
+```
+##### 请求体：
+```json
+{
+  "pinned": true
+}
+```
+##### 字段说明：
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| pinned | boolean | 是 | true=置顶，false=取消置顶 |
+##### 成功响应（200）：
+```json
+{
+  "id": "msg_001",
+  "pinned": true
 }
 ```
 ### 2.3 Agent 管理
@@ -243,6 +317,60 @@ GET /agents/{id}
   "createdAt": "2026-05-20T08:00:00"
 }
 ```
+### 2.4 产物管理
+#### 2.4.1 上传产物
+```http
+POST /artifacts/upload
+```
+##### 请求格式：
+`Content-Type: multipart/form-data`
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| file | file | 是 | 产物文件 |
+| conversationId | string | 是 | 所属会话 ID |
+| messageId | string | 否 | 关联消息 ID |
+##### 成功响应（201）：
+```json
+{
+  "id": "art_001",
+  "filename": "App.jsx",
+  "fileSize": 2048,
+  "conversationId": "conv_abc123",
+  "messageId": "msg_002",
+  "createdAt": "2026-05-25T11:00:00"
+}
+```
+#### 2.4.2 下载/预览产物
+```http
+GET /artifacts/{id}
+```
+##### 成功响应（200）：
+返回原始文件内容，`Content-Type` 根据文件类型自动设置。
+#### 2.4.3 获取会话下所有产物
+```http
+GET /conversations/{id}/artifacts
+```
+##### 成功响应（200）：
+```json
+{
+  "artifacts": [
+    {
+      "id": "art_001",
+      "filename": "App.jsx",
+      "fileSize": 2048,
+      "messageId": "msg_002",
+      "createdAt": "2026-05-25T11:00:00"
+    },
+    {
+      "id": "art_002",
+      "filename": "style.css",
+      "fileSize": 1024,
+      "messageId": "msg_003",
+      "createdAt": "2026-05-25T11:01:00"
+    }
+  ]
+}
+```
 ---
 ## 3. WebSocket 协议（前端 ↔ Spring Boot）
 ### 3.1 连接配置
@@ -264,9 +392,7 @@ GET /agents/{id}
 ```json
 {
   "conversationId": "conv_abc123",
-  "content": "帮我写一个 React 组件",
-  "agentType": "claude_code",
-  "systemPrompt": "你是一个前端开发专家"
+  "content": "帮我写一个 React 组件"
 }
 ```
 ##### 字段说明：
@@ -274,8 +400,7 @@ GET /agents/{id}
 |------|------|------|------|
 | conversationId | string | 是 | 目标会话 ID |
 | content | string | 是 | 消息文本内容 |
-| agentType | string | 否 | 指定 Agent 类型，不传则使用会话默认 Agent |
-| systemPrompt | string | 否 | 临时 System Prompt，覆盖默认值 |
+> **注意**：前端不再传递 `agentType` 和 `systemPrompt`。Agent 调度由 Orchestrator 在 Python 层自动完成，前端不感知任务拆分过程。
 #### 3.3.2 接收消息（后端 → 前端）
 ##### 订阅地址: `/topic/conversation.{conversationId}`
 ##### 消息块格式（MessageChunk）：
@@ -283,6 +408,7 @@ GET /agents/{id}
 {
   "content": "好的",
   "isComplete": false,
+  "agentId": "agent_claude_001",
   "agentName": "Claude Code",
   "messageType": "text",
   "messageId": "msg_002"
@@ -293,9 +419,20 @@ GET /agents/{id}
 |------|------|------|
 | content | string | 消息内容片段（流式时为 token，完成时为完整内容） |
 | isComplete | boolean | false=流式传输中，true=本条消息发送完毕 |
+| agentId | string | 发送此消息的 Agent ID，前端据此区分不同 Agent 发言并切换头像 |
 | agentName | string | 发送此消息的 Agent 名称 |
 | messageType | string | 消息类型：text / code / diff / preview_card |
 | messageId | string | 消息 ID（isComplete=true 时返回，用于后续操作） |
+##### Agent 切换事件（agent_switch）
+当 Orchestrator 切换调用的 Agent 时（如从 Coder 切到 Designer），后端推送切换通知：
+```json
+{
+  "type": "agent_switch",
+  "agentId": "agent_codex_001",
+  "agentName": "Codex"
+}
+```
+前端收到此事件后，后续渲染的消息气泡自动切换为对应 Agent 的头像和名称。
 ### 3.4 流式推送时序
 ```text
 时间轴：前端视角的消息接收过程
@@ -303,11 +440,13 @@ GET /agents/{id}
 t=0.0s  用户点击发送
 t=0.1s  前端在消息列表添加用户气泡（本地）
 t=0.5s  收到第 1 个 chunk → 显示流式气泡 + 光标动画
-        {"content": "好的", "isComplete": false, "agentName": "Claude Code"}
+        {"content": "好的", "isComplete": false, "agentId": "agent_claude_001", "agentName": "Claude Code"}
 t=0.6s  收到第 2 个 chunk → 内容追加
-        {"content": "，这是", "isComplete": false, "agentName": "Claude Code"}
-t=0.7s  收到第 3 个 chunk → 内容继续追加
-        {"content": "生成的代码", "isComplete": false, "agentName": "Claude Code"}
+        {"content": "，这是", "isComplete": false, "agentId": "agent_claude_001", "agentName": "Claude Code"}
+t=1.5s  Orchestrator 切换到另一个 Agent：
+        {"type": "agent_switch", "agentId": "agent_codex_001", "agentName": "Codex"}
+t=1.6s  收到 Codex 的第 1 个 chunk → 气泡头像切换为 Codex
+        {"content": "这部分的代码", "isComplete": false, "agentId": "agent_codex_001", "agentName": "Codex"}
 ...
 t=3.0s  收到最终 chunk → 流式气泡消失，消息固化到列表
         {"content": "完整回复内容...", "isComplete": true, "messageId": "msg_002"}
@@ -352,11 +491,11 @@ POST /api/agent/chat
 #### 流式响应（`stream: true`）
 ##### 响应格式：SSE（Server-Sent Events）
 ```text
-data: {"token": "好的", "finish": false}
+data: {"token": "好的", "finish": false, "agentId": "agent_claude_001", "agentName": "Claude Code"}
 
-data: {"token": "，这是", "finish": false}
+data: {"token": "，这是", "finish": false, "agentId": "agent_claude_001", "agentName": "Claude Code"}
 
-data: {"token": "生成的代码", "finish": false}
+data: {"token": "生成的代码", "finish": false, "agentId": "agent_claude_001", "agentName": "Claude Code"}
 
 ...
 
@@ -367,7 +506,10 @@ data: {"token": "", "finish": true, "messageId": "msg_456"}
 |------|------|------|
 | token | string | 本次推送的文本片段 |
 | finish | boolean | true 表示流结束 |
+| agentId | string | 发送此 token 的 Agent ID，Orchestrator 调度时可能随 token 变化 |
+| agentName | string | 发送此 token 的 Agent 名称 |
 | messageId | string | 消息 ID（仅在 finish=true 时返回） |
+> **注意**：`agentId` 和 `agentName` 由 Orchestrator 在调度时动态设置。当 Orchestrator 切换 Agent 时（如从 Coder 切到 Designer），后续 SSE chunk 中的 `agentId`/`agentName` 会随之变化，Spring Boot 层据此推送 `agent_switch` 事件给前端。
 ### 4.3 健康检查
 ```http
 GET /health
