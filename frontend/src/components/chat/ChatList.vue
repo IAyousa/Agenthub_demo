@@ -1,18 +1,24 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { Search as SearchIcon, Plus as PlusIcon, X as XIcon } from 'lucide-vue-next'
 import { useChatStore } from '../../stores/chat'
 import { storeToRefs } from 'pinia'
 
 const chatStore = useChatStore()
+const router = useRouter()
 const { currentConversationId, conversationList } = storeToRefs(chatStore)
 
 const showCreateInput = ref(false)
 const createTitle = ref('')
 
 const handleSelect = (id: string) => {
-  chatStore.selectConversation(id)
-  chatStore.mobileView = 'chat'
+  const conv = conversationList.value.find(c => c.id === id)
+  if (conv && conv.type === 'group') {
+    router.push('/office/' + id)
+  } else {
+    router.push('/chat/' + id)
+  }
 }
 
 const handleCreateClick = () => {

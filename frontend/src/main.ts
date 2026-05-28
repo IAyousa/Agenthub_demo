@@ -2,6 +2,7 @@ import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import './style.css'
 import App from './App.vue'
+import router from './router'
 
 // Monaco Editor Worker Configuration
 import editorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker'
@@ -22,4 +23,5 @@ import tsWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker'
 
 const app = createApp(App)
 app.use(createPinia())
+app.use(router)
 app.mount('#app')
