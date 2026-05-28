@@ -1,0 +1,7 @@
+# type: feat / fix / refactor / style / docs / chore
+# module: frontend / backend / agent-service
+<type>(<module>): <简短描述>
+
+- <改动点 1>
+- <改动点 2>
+- <改动点 3>
