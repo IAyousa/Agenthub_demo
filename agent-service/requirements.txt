@@ -14,7 +14,7 @@ sse-starlette==1.8.2
 
 # LLM Orchestration
 langchain==0.1.0
-langgraph==0.0.20
+langgraph==0.0.8
 
 # Environment Variable Management
 python-dotenv==1.0.0
@@ -26,3 +26,7 @@ sqlalchemy
 aiosqlite
 jose[cryptography]
 passlib[bcrypt]
+
+# H2 Database JDBC Bridge (与 Java 后端共享同一 H2 数据库)
+jaydebeapi==1.2.3
+jpype1>=1.7.0

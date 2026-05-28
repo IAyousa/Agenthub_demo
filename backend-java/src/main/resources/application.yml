@@ -9,7 +9,7 @@ spring:
         trace: false
         web-allow-others: false
   datasource:
-    url: jdbc:h2:mem:agenthub;DB_CLOSE_DELAY=-1
+    url: jdbc:h2:file:./shared-data/agenthub;AUTO_SERVER=TRUE
     username: sa
     password: 
     driver-class-name: org.h2.Driver
