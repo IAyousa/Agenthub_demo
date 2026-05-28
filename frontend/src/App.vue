@@ -1,63 +1,13 @@
 <script setup lang="ts">
 import SideBar from './components/layout/SideBar.vue'
-import ChatList from './components/chat/ChatList.vue'
-import ChatWindow from './components/chat/ChatWindow.vue'
-import OfficeView from './components/office/OfficeView.vue'
-import ArtifactWindow from './components/chat/ArtifactWindow.vue'
-import { useChatStore } from './stores/chat'
-
-const chatStore = useChatStore()
 </script>
 
 <template>
   <div class="h-screen w-screen flex overflow-hidden font-sans select-none">
-    <!-- Left: Navigation Sidebar (Dark) - Always visible, fixed width -->
     <SideBar class="flex-shrink-0" />
 
-    <!-- Main Responsive Container -->
     <Transition name="main-view" mode="out-in">
-      <div key="chat" v-if="chatStore.currentView === 'chat'" class="flex-1 flex overflow-hidden relative">
-        <!-- Middle: Chat List -->
-        <ChatList 
-          :class="[
-            'flex-shrink-0 w-full md:w-64 border-r border-[#e2e8f0]',
-            chatStore.mobileView === 'chat' ? 'hidden md:flex' : 'flex'
-          ]"
-        />
-
-        <!-- Right: Main Chat Area -->
-        <div 
-          :class="[
-            'flex-1 h-full flex overflow-hidden relative',
-            chatStore.mobileView === 'list' ? 'hidden md:flex' : 'flex'
-          ]"
-        >
-          <!-- Chat Window -->
-          <div class="h-full w-full overflow-hidden">
-            <ChatWindow class="w-full h-full" />
-          </div>
-
-          <!-- Artifact Window (Overlay) -->
-          <Transition name="overlay">
-            <div 
-              v-if="chatStore.isArtifactVisible && chatStore.currentArtifact" 
-              class="absolute inset-0 z-50 bg-white overflow-hidden shadow-2xl"
-            >
-              <ArtifactWindow 
-                :title="chatStore.currentArtifact.title"
-                :code="chatStore.currentArtifact.code"
-                :language="chatStore.currentArtifact.language"
-                @close="chatStore.closeArtifact"
-              />
-            </div>
-          </Transition>
-        </div>
-      </div>
-
-      <!-- Office View -->
-      <div key="office" v-else class="flex-1 flex overflow-hidden">
-        <OfficeView />
-      </div>
+      <RouterView />
     </Transition>
   </div>
 </template>

@@ -45,40 +45,11 @@
       </div>
     </main>
 
-    <!-- Input Area -->
-    <footer class="h-[180px] bg-white/90 backdrop-blur-md border-t border-indigo-100 flex flex-col shrink-0">
-      <!-- Toolbar -->
-      <div class="h-10 px-4 flex items-center gap-4 text-indigo-400">
-        <SmileIcon :size="20" class="cursor-pointer hover:text-indigo-600 transition-colors" />
-        <FolderIcon :size="20" class="cursor-pointer hover:text-indigo-600 transition-colors" />
-        <ScissorsIcon :size="20" class="cursor-pointer hover:text-indigo-600 transition-colors" />
-        <HistoryIcon :size="20" class="cursor-pointer hover:text-indigo-600 transition-colors ml-auto" />
-      </div>
-
-      <!-- Text Input -->
-      <div class="flex-1 px-4">
-        <textarea
-          v-model="input"
-          class="w-full h-full resize-none border-none outline-none text-[14px] text-gray-800 leading-relaxed py-1 bg-transparent"
-          @keydown.enter.exact.prevent="sendMessage"
-          placeholder="输入消息..."
-        ></textarea>
-      </div>
-
-      <!-- Send Button -->
-      <div class="h-12 px-4 flex justify-end items-center">
-        <button 
-          @click="sendMessage"
-          :class="[
-            'px-6 py-2 rounded-xl text-[13px] font-semibold transition-all shadow-md',
-            input.trim() ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:shadow-lg hover:scale-105 transform' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-          ]"
-          :disabled="!input.trim() || isLoading"
-        >
-          发送
-        </button>
-      </div>
-    </footer>
+    <MessageInput
+      :disabled="isLoading"
+      placeholder="输入消息..."
+      @send="handleSend"
+    />
   </div>
 </template>
 
@@ -87,18 +58,14 @@ import { ref, onMounted, watch, nextTick } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useChatStore } from '../../stores/chat'
 import ChatMessage from './ChatMessage.vue'
+import MessageInput from './MessageInput.vue'
 import { 
-  Smile as SmileIcon, 
-  Folder as FolderIcon, 
-  Scissors as ScissorsIcon,
-  History as HistoryIcon,
   MoreHorizontal as MoreHorizontalIcon,
   ChevronLeft as ChevronLeftIcon
 } from 'lucide-vue-next'
 
 const chatStore = useChatStore()
 const { currentMessages, currentTitle, isLoading } = storeToRefs(chatStore)
-const input = ref('')
 const scrollContainer = ref<HTMLElement | null>(null)
 
 const scrollToBottom = async () => {
@@ -129,21 +96,16 @@ onMounted(() => {
   scrollToBottom()
 })
 
-const sendMessage = () => {
-  if (!input.value.trim() || isLoading.value) return
-  
+const handleSend = (content: string) => {
   chatStore.addMessage({
     id: Date.now().toString(),
     role: 'user',
     type: 'text',
-    content: input.value,
+    content: content,
     created_at: new Date().toISOString()
   })
   
-  const userQuery = input.value
-  input.value = ''
-  
-  simulateResponse(userQuery)
+  simulateResponse(content)
 }
 
 const simulateResponse = (query: string) => {

@@ -16,6 +16,16 @@ export interface Conversation {
   messages: Message[]
 }
 
+export interface ConversationSummary {
+  id: string
+  title: string
+  type: 'direct' | 'group'
+  lastMessage: string
+  updatedAt: string
+  agentNames: string[]
+  isArchived?: boolean
+}
+
 export interface OfficeMember {
   id: string
   name: string
@@ -43,7 +53,7 @@ export interface Office {
 export type AppView = 'chat' | 'office'
 
 export const useChatStore = defineStore('chat', () => {
-  const currentConversationId = ref<string>('orchestrator')
+  const currentConversationId = ref<string>('conv_frontend_001')
   const mobileView = ref<'list' | 'chat'>('list')
   const currentView = ref<AppView>('chat')
   
@@ -158,34 +168,74 @@ export const useChatStore = defineStore('chat', () => {
 
   // 聊天管理
   const conversations = ref<Record<string, Conversation>>({
-    'orchestrator': {
-      id: 'orchestrator',
-      title: 'Orchestrator Agent',
+    'conv_frontend_001': {
+      id: 'conv_frontend_001',
+      title: '前端博客开发',
       messages: [
         {
-          id: 'welcome',
+          id: 'welcome-frontend',
           role: 'assistant',
           type: 'text',
-          content: '你好！我是 Multi-Agent Orchestrator。我可以协调多个专业 Agent 帮助你完成任务。',
+          content: '你好！我是 Claude Code，我会协助你完成前端博客的开发任务。让我们开始吧！',
           created_at: new Date().toISOString()
         }
       ]
     },
-    'coder': {
-      id: 'coder',
-      title: '代码助手 (Coder)',
+    'conv_backend_001': {
+      id: 'conv_backend_001',
+      title: '后端接口重构',
       messages: [
         {
-          id: 'welcome-coder',
+          id: 'welcome-backend',
           role: 'assistant',
           type: 'text',
-          content: '你好！我是代码专家，有什么编程问题可以问我。',
+          content: '你好！我是 Codex，我会协助你重构后端接口。请告诉我需要重构哪些接口？',
+          created_at: new Date().toISOString()
+        }
+      ]
+    },
+    'conv_review_001': {
+      id: 'conv_review_001',
+      title: '代码审查',
+      messages: [
+        {
+          id: 'welcome-review',
+          role: 'assistant',
+          type: 'text',
+          content: '你好！代码审查已准备就绪。请提交需要审查的代码。',
           created_at: new Date().toISOString()
         }
       ]
     }
   })
   const isLoading = ref(false)
+
+  const conversationList = ref<ConversationSummary[]>([
+    {
+      id: 'conv_frontend_001',
+      title: '前端博客开发',
+      type: 'direct',
+      lastMessage: '已生成 App.jsx 组件',
+      updatedAt: new Date(Date.now() - 3600000).toISOString(),
+      agentNames: ['Claude Code'],
+    },
+    {
+      id: 'conv_backend_001',
+      title: '后端接口重构',
+      type: 'direct',
+      lastMessage: '完成了 User API 和 Message API 的重构',
+      updatedAt: new Date(Date.now() - 7200000).toISOString(),
+      agentNames: ['Codex'],
+    },
+    {
+      id: 'conv_review_001',
+      title: '代码审查',
+      type: 'direct',
+      lastMessage: '发现 3 处潜在性能问题，建议优化',
+      updatedAt: new Date(Date.now() - 86400000).toISOString(),
+      agentNames: ['Claude Code', 'Codex'],
+    },
+  ])
 
   // Artifact State
   const currentArtifact = ref<{
@@ -226,9 +276,38 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
+  const createConversation = (title: string) => {
+    const id = `conv_${Date.now()}`
+    const newConv: ConversationSummary = {
+      id,
+      title,
+      type: 'direct',
+      lastMessage: '新会话已创建',
+      updatedAt: new Date().toISOString(),
+      agentNames: [],
+    }
+    conversationList.value.unshift(newConv)
+    conversations.value[id] = {
+      id,
+      title,
+      messages: [
+        {
+          id: `welcome-${id}`,
+          role: 'assistant',
+          type: 'text',
+          content: '新会话已创建，你可以选择参与的 Agent 并开始对话。',
+          created_at: new Date().toISOString()
+        }
+      ]
+    }
+    currentConversationId.value = id
+    mobileView.value = 'chat'
+  }
+
   return {
     currentConversationId,
     conversations,
+    conversationList,
     currentMessages,
     currentTitle,
     isLoading,
@@ -246,6 +325,7 @@ export const useChatStore = defineStore('chat', () => {
     deleteOffice,
     addMessage,
     selectConversation,
+    createConversation,
     showArtifact,
     closeArtifact,
     inviteMember,
