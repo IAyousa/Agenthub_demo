@@ -52,3 +52,6 @@ shared-data/
 *.mv.db
 *.trace.db
 agent_collaboration/
+
+# ========== 本地临时单元测试（不提交远程仓库） ==========
+backend-java/src/test/

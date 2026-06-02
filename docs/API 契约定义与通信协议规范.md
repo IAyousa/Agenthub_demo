@@ -457,59 +457,49 @@ t=3.0s  收到最终 chunk → 流式气泡消失，消息固化到列表
 | 约定项 | 规范 |
 |--------|------|
 | Base URL | http://localhost:8000 |
+| API 版本前缀 | `/api/v1/`（预留未来升级 `/api/v2/`，后期可直接去掉 v1 改为 `/api/`） |
 | 请求格式 | Content-Type: application/json |
-| 流式响应 | Content-Type: text/event-stream（SSE 格式） |
+| 流式响应 | Content-Type: application/x-ndjson（Newline Delimited JSON，每行一个 JSON 对象） |
 | 超时时间 | 120 秒（可在 Spring Boot 配置中修改） |
-| 字段命名 | camelCase（驼峰） |
+| 字段命名 | snake_case（蛇形，与 Python Pydantic 模型对齐） |
 ### 4.2 Agent 对话接口
 ```http
-POST /api/agent/chat
+POST /api/v1/messages/chat/stream
 ```
 #### 请求体：
 ```json
 {
-  "agentType": "claude_code",
-  "systemPrompt": "你是一个前端开发专家，擅长 React。",
-  "context": "用户：帮我写一个 React 组件\n",
-  "stream": true
+  "message": "帮我写一个 React 计数器组件",
+  "agent_type": "claude",
+  "system_prompt": "你是一个前端开发专家，擅长 React 函数组件和 Hooks。",
+  "history": [
+    {"role": "user", "content": "之前的对话历史..."},
+    {"role": "assistant", "content": "之前的回复..."}
+  ]
 }
 ```
 #### 字段说明：
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| agentType | string | 是 | Agent 类型：claude_code / codex / custom |
-| systemPrompt | string | 否 | 系统提示词，覆盖 Agent 默认值 |
-| context | string | 是 | 格式化后的聊天历史上下文 |
-| stream | boolean | 否 | 是否流式返回，默认 true |
-#### 非流式响应（`stream: false`）
-```json
-{
-  "content": "好的，这是生成的 React 组件代码：\n```javascript\nimport React from 'react';\n\nconst App = () => {\n  return <div>Hello World</div>;\n};\n\nexport default App;\n```",
-  "messageId": "msg_456"
-}
-```
-#### 流式响应（`stream: true`）
-##### 响应格式：SSE（Server-Sent Events）
+| message | string | 是 | 用户当前输入的消息文本 |
+| agent_type | string | 否 | Agent 类型，默认值 "claude" |
+| system_prompt | string | 否 | 系统提示词，覆盖 Agent 默认值 |
+| history | array | 否 | 对话历史上下文，格式为 `[{"role": "user"/"assistant", "content": "..."}]` |
+#### 流式响应
+##### 响应格式：NDJSON（每行一个独立 JSON 对象，无 `data:` 前缀）
 ```text
-data: {"token": "好的", "finish": false, "agentId": "agent_claude_001", "agentName": "Claude Code"}
-
-data: {"token": "，这是", "finish": false, "agentId": "agent_claude_001", "agentName": "Claude Code"}
-
-data: {"token": "生成的代码", "finish": false, "agentId": "agent_claude_001", "agentName": "Claude Code"}
-
-...
-
-data: {"token": "", "finish": true, "messageId": "msg_456"}
+{"type": "msg_start", "message_id": "uuid-123", "role": "assistant"}
+{"type": "msg_chunk", "delta": "好的", "message_id": "uuid-123"}
+{"type": "msg_chunk", "delta": "，这是", "message_id": "uuid-123"}
+{"type": "msg_end", "message_id": "uuid-123"}
 ```
 ##### SSE chunk 字段说明：
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| token | string | 本次推送的文本片段 |
-| finish | boolean | true 表示流结束 |
-| agentId | string | 发送此 token 的 Agent ID，Orchestrator 调度时可能随 token 变化 |
-| agentName | string | 发送此 token 的 Agent 名称 |
-| messageId | string | 消息 ID（仅在 finish=true 时返回） |
-> **注意**：`agentId` 和 `agentName` 由 Orchestrator 在调度时动态设置。当 Orchestrator 切换 Agent 时（如从 Coder 切到 Designer），后续 SSE chunk 中的 `agentId`/`agentName` 会随之变化，Spring Boot 层据此推送 `agent_switch` 事件给前端。
+| type | string | 事件类型：`msg_start` / `msg_chunk` / `msg_end` |
+| message_id | string | 本条消息的 UUID 主键 |
+| delta | string | 本次推送的文本增量片段（仅 type=msg_chunk 时有值） |
+| role | string | 角色，仅 type=msg_start 时有值 |
 ### 4.3 健康检查
 ```http
 GET /health
