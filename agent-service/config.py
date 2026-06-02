@@ -13,12 +13,10 @@ AgentHub Agent Service — 全局配置
 配置分区：
   - 服务配置：FastAPI 监听地址、端口、标题
   - 本地 CLI Agent 配置：Claude Code / Codex CLI 路径与参数
-  - Agent 调用参数：超时、最大 Token 数
+  - Agent 调用参数：超时、工作目录
   - 安全配置：CORS 允许的前端与 Java 后端地址
-  - H2 共享数据库配置：与 Java 后端共享 H2 文件数据库的路径
 """
 
-import os
 from pydantic_settings import BaseSettings
 from typing import List
 
@@ -52,7 +50,6 @@ class Settings(BaseSettings):
     # ========== Agent 调用参数 ==========
     # 控制 Agent 调用的行为
     AGENT_TIMEOUT: int = 300                          # 单次 Agent 任务超时（秒），CLI 可能执行文件操作等耗时任务
-    AGENT_MAX_TOKENS: int = 4096                      # 回复的最大 Token 数
     AGENT_WORKING_DIRECTORY: str = "."                # Agent CLI 执行任务的工作目录，默认当前目录
 
     # ========== 安全配置 ==========
@@ -61,11 +58,6 @@ class Settings(BaseSettings):
         "http://localhost:5173",                     # Vue 前端开发服务器
         "http://localhost:8080",                     # Spring Boot Java 后端
     ]
-
-    # ========== H2 共享数据库配置 ==========
-    # Python 通过 JPype + jaydebeapi JDBC 桥接访问 Java 端的 H2 文件数据库
-    H2_JAR_PATH: str = os.getenv("H2_JAR_PATH", "")                       # H2 JDBC 驱动 jar 文件路径，为空时自动搜索
-    H2_DB_PATH: str = os.getenv("H2_DB_PATH", "../shared-data/agenthub")  # H2 数据库文件路径（相对于 agent-service/）
 
     class Config:
         env_file = ".env"

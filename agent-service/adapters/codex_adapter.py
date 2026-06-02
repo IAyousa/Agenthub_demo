@@ -21,20 +21,12 @@ OpenAI Codex CLI 参考：https://github.com/openai/codex
 
 import asyncio
 import os
-import re
 import shutil
 import uuid
 from typing import AsyncGenerator, List, Optional
 
 from config import settings
 from .base_adapter import BaseAdapter
-
-ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]")
-
-
-def strip_ansi(text: str) -> str:
-    """移除字符串中的 ANSI 转义序列（颜色代码等）。"""
-    return ANSI_ESCAPE_RE.sub("", text)
 
 
 class CodexAdapter(BaseAdapter):
@@ -59,27 +51,6 @@ class CodexAdapter(BaseAdapter):
         self.cli_args = list(settings.CODEX_CLI_ARGS)
         self.default_cwd = settings.AGENT_WORKING_DIRECTORY
         self.timeout = settings.AGENT_TIMEOUT
-
-    def _build_prompt(
-        self,
-        message: str,
-        system_prompt: str = "",
-        history: List[dict] = None,
-    ) -> str:
-        """将系统提示词、历史记录和用户消息组合成完整 prompt。"""
-        parts = []
-        if system_prompt:
-            parts.append(system_prompt)
-        if history:
-            for entry in history:
-                role = entry.get("role", "user")
-                content = entry.get("content", "")
-                if role == "user":
-                    parts.append(f"用户：{content}")
-                elif role == "assistant":
-                    parts.append(f"助手：{content}")
-        parts.append(message)
-        return "\n\n".join(parts)
 
     async def chat_stream(
         self,
@@ -163,7 +134,7 @@ class CodexAdapter(BaseAdapter):
             if process.stdout:
                 async for line in process.stdout:
                     text = line.decode("utf-8", errors="replace")
-                    clean = strip_ansi(text)
+                    clean = BaseAdapter.strip_ansi(text)
                     if clean.strip():
                         yield {
                             "type": "msg_chunk",

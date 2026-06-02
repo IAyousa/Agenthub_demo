@@ -19,7 +19,10 @@ chat_stream 方法，通过 SSE 协议流式返回 LLM 生成内容。
     3. 在 AdapterFactory 中注册新的类型映射
 """
 
+import re
 from typing import AsyncGenerator, List, Any
+
+ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]")
 
 
 class BaseAdapter:
@@ -28,6 +31,32 @@ class BaseAdapter:
     这里不声明抽象方法，而是通过文档约定接口，因为 Python 的
     ABC 机制在流式生成器场景下会增加不必要的复杂度。
     """
+
+    @staticmethod
+    def strip_ansi(text: str) -> str:
+        """移除字符串中的 ANSI 转义序列（颜色代码等）。"""
+        return ANSI_ESCAPE_RE.sub("", text)
+
+    @staticmethod
+    def build_prompt(
+        message: str,
+        system_prompt: str = "",
+        history: List[dict] = None,
+    ) -> str:
+        """将系统提示词、历史记录和用户消息组合成完整 prompt。"""
+        parts = []
+        if system_prompt:
+            parts.append(system_prompt)
+        if history:
+            for entry in history:
+                role = entry.get("role", "user")
+                content = entry.get("content", "")
+                if role == "user":
+                    parts.append(f"用户：{content}")
+                elif role == "assistant":
+                    parts.append(f"助手：{content}")
+        parts.append(message)
+        return "\n\n".join(parts)
 
     async def chat_stream(
         self,
