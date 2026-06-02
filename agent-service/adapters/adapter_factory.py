@@ -2,36 +2,31 @@
 AgentHub — Agent 适配器工厂
 
 本模块是适配器模式的核心工厂，负责根据 Agent 类型（agent.type）
-返回对应的 LLM 适配器实例。
+返回对应的 Agent 适配器实例。
 
 类型映射规则：
-    claude_code       → ClaudeAdapter（Anthropic Claude API）
-    codex             → CodexAdapter（OpenAI Chat Completions API）
-    deepseek_v4_pro   → DeepSeekAdapter（deepseek-v4-pro）
-    deepseek_v4_flash → DeepSeekAdapter（deepseek-v4-flash）
-    custom            → ClaudeAdapter（自定义 Agent 默认使用 Claude）
+    claude_code       → ClaudeAdapter（本地 Claude Code CLI，执行任务于本机）
+    codex             → CodexAdapter（本地 OpenAI Codex CLI，执行任务于本机）
+    custom            → ClaudeAdapter（自定义 Agent 默认使用 Claude Code）
 
 扩展方法：
-    在 _ADAPTER_MAP 中新增映射即可，无需修改工厂逻辑。
+    在 ADAPTER_MAP 中新增映射即可，无需修改工厂逻辑。
 
 使用方式：
     adapter = AdapterFactory.get_adapter("claude_code")
-    async for chunk in adapter.chat_stream("你好", system_prompt="..."):
+    async for chunk in adapter.chat_stream("你好", system_prompt="...",
+                                            working_directory="/path/to/project"):
         ...
 """
 
 from .base_adapter import BaseAdapter
 from .claude_adapter import ClaudeAdapter
 from .codex_adapter import CodexAdapter
-from .deepseek_adapter import DeepSeekAdapter
-from config import settings
 
 
 ADAPTER_MAP = {
     "claude_code": ClaudeAdapter,
     "codex": CodexAdapter,
-    "deepseek_v4_pro": lambda: DeepSeekAdapter(model=settings.DEEPSEEK_PRO_MODEL),
-    "deepseek_v4_flash": lambda: DeepSeekAdapter(model=settings.DEEPSEEK_FLASH_MODEL),
     "custom": ClaudeAdapter,
 }
 

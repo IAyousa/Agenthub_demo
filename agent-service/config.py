@@ -12,7 +12,7 @@ AgentHub Agent Service — 全局配置
 
 配置分区：
   - 服务配置：FastAPI 监听地址、端口、标题
-  - LLM API 配置：Claude / Codex / DeepSeek 的 Key 和 URL
+  - 本地 CLI Agent 配置：Claude Code / Codex CLI 路径与参数
   - Agent 调用参数：超时、最大 Token 数
   - 安全配置：CORS 允许的前端与 Java 后端地址
   - H2 共享数据库配置：与 Java 后端共享 H2 文件数据库的路径
@@ -33,29 +33,27 @@ class Settings(BaseSettings):
     HOST: str = "0.0.0.0"                           # 监听地址（0.0.0.0 表示接受所有来源连接）
     PORT: int = 8000                                 # 监听端口（与 Java 端 agent.service.url 对齐）
 
-    # ========== Claude API 配置 ==========
-    # 调用 Anthropic Claude API 所需的凭证和端点
-    CLAUDE_API_KEY: str = os.getenv("CLAUDE_API_KEY", "your-api-key-here")   # 从环境变量读取，避免硬编码
-    CLAUDE_API_URL: str = "https://api.anthropic.com/v1/messages"             # Anthropic Messages API 端点
-    CLAUDE_MODEL: str = "claude-3-5-sonnet-20241022"                          # 默认模型
+    # ========== Claude Code 本地 CLI 配置 ==========
+    # Claude Code 是 Anthropic 官方提供的本地 CLI Agent 工具
+    # 安装方式：npm install -g @anthropic-ai/claude-code
+    # 使用方式：claude -p "你的提示词"（非交互模式，输出到 stdout）
+    # 环境要求：需要设置 ANTHROPIC_API_KEY 环境变量
+    CLAUDE_CLI_COMMAND: str = "claude"               # Claude Code CLI 命令名或绝对路径
+    CLAUDE_CLI_ARGS: List[str] = []                  # 额外的 CLI 参数（如 ["--model", "claude-sonnet-4-20250514"]）
 
-    # ========== Codex API 配置 ==========
-    # Codex 调用 OpenAI 兼容接口
-    CODEX_API_KEY: str = os.getenv("CODEX_API_KEY", "your-api-key-here")      # 从环境变量读取
-    CODEX_API_URL: str = "https://api.openai.com/v1/chat/completions"         # OpenAI Chat Completions 端点
-    CODEX_MODEL: str = "gpt-4o"                                                # 默认模型
-
-    # ========== DeepSeek API 配置 ==========
-    # DeepSeek 使用 OpenAI 兼容接口，API 文档：https://platform.deepseek.com/api-docs
-    DEEPSEEK_API_KEY: str = os.getenv("DEEPSEEK_API_KEY", "your-api-key-here")
-    DEEPSEEK_API_URL: str = "https://api.deepseek.com/v1/chat/completions"
-    DEEPSEEK_PRO_MODEL: str = "deepseek-v4-pro"      # DeepSeek V4 Pro
-    DEEPSEEK_FLASH_MODEL: str = "deepseek-v4-flash"  # DeepSeek V4 Flash
+    # ========== Codex 本地 CLI 配置 ==========
+    # OpenAI Codex CLI 是 OpenAI 官方提供的本地 CLI Agent 工具
+    # 安装方式：npm install -g @openai/codex
+    # 使用方式：codex exec "你的提示词"（在执行模式下运行任务）
+    # 环境要求：需要设置 OPENAI_API_KEY 环境变量
+    CODEX_CLI_COMMAND: str = "codex"                 # Codex CLI 命令名或绝对路径
+    CODEX_CLI_ARGS: List[str] = []                   # 额外的 CLI 参数（如 ["--model", "gpt-5"]）
 
     # ========== Agent 调用参数 ==========
-    # 控制 LLM 调用的行为
-    AGENT_TIMEOUT: int = 120                         # 单次 LLM 请求超时（秒）
-    AGENT_MAX_TOKENS: int = 4096                     # LLM 回复的最大 Token 数
+    # 控制 Agent 调用的行为
+    AGENT_TIMEOUT: int = 300                          # 单次 Agent 任务超时（秒），CLI 可能执行文件操作等耗时任务
+    AGENT_MAX_TOKENS: int = 4096                      # 回复的最大 Token 数
+    AGENT_WORKING_DIRECTORY: str = "."                # Agent CLI 执行任务的工作目录，默认当前目录
 
     # ========== 安全配置 ==========
     # CORS 白名单：仅允许以下来源跨域访问 FastAPI
@@ -70,7 +68,8 @@ class Settings(BaseSettings):
     H2_DB_PATH: str = os.getenv("H2_DB_PATH", "../shared-data/agenthub")  # H2 数据库文件路径（相对于 agent-service/）
 
     class Config:
-        env_file = ".env"                              # 自动加载 agent-service/.env 中的环境变量
+        env_file = ".env"
+        extra = "ignore"  # 忽略 .env 中未在当前 Settings 定义的旧字段
 
 
 # 模块级单例：其他模块通过 `from config import settings` 直接使用
