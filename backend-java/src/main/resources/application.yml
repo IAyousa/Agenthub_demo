@@ -48,4 +48,3 @@ cors:
 artifact:
   storage:
     path: ./artifacts
-    url-prefix: /artifacts
