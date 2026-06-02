@@ -7,7 +7,7 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 
-import java.util.List;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Consumer;
 
@@ -22,17 +22,27 @@ public class AgentGatewayService {
         this.objectMapper = objectMapper;
     }
 
-    public void sendToAgent(String message, String agentType, String systemPrompt,
-                            List<Map<String, String>> history, Consumer<String> onToken) {
+    /**
+     * 调用 Python FastAPI Agent 服务进行流式对话。
+     * 对齐 API 契约文档第 4.2 节：POST /api/agent/chat
+     *
+     * @param context      格式化后的对话上下文（由 MessageService 组装）
+     * @param agentType    Agent 类型（claude_code / codex / custom）
+     * @param systemPrompt 系统提示词
+     * @param onToken      token 回调，携带 agentId/agentName 用于 Agent 切换
+     */
+    public void sendToAgent(String context, String agentType, String systemPrompt,
+                            Consumer<AgentToken> onToken) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("agentType", agentType != null ? agentType : "claude_code");
+        body.put("systemPrompt", systemPrompt != null ? systemPrompt : "");
+        body.put("context", context != null ? context : "");
+        body.put("stream", true);
+
         webClient.post()
-                .uri("/api/v1/messages/chat/stream")
+                .uri("/api/agent/chat")
                 .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(Map.of(
-                        "message", message,
-                        "agent_type", agentType != null ? agentType : "claude",
-                        "system_prompt", systemPrompt != null ? systemPrompt : "",
-                        "history", history != null ? history : List.of()
-                ))
+                .bodyValue(body)
                 .retrieve()
                 .bodyToFlux(String.class)
                 .doOnNext(line -> {
@@ -40,25 +50,84 @@ public class AgentGatewayService {
                         return;
                     }
                     String trimmed = line.trim();
-                    if (trimmed.isEmpty()) {
+                    if (!trimmed.startsWith("data: ")) {
+                        return;
+                    }
+                    String jsonStr = trimmed.substring(6).trim();
+                    if (jsonStr.isEmpty()) {
                         return;
                     }
                     try {
-                        JsonNode node = objectMapper.readTree(trimmed);
-                        String type = node.path("type").asText();
+                        JsonNode node = objectMapper.readTree(jsonStr);
+                        String token = node.path("token").asText(null);
+                        boolean finish = node.path("finish").asBoolean(false);
+                        String agentId = node.path("agentId").asText(null);
+                        String agentName = node.path("agentName").asText(null);
+                        String messageId = node.path("messageId").asText(null);
+                        String error = node.path("error").asText(null);
 
-                        if ("msg_chunk".equals(type)) {
-                            String delta = node.path("delta").asText();
-                            if (delta != null && !delta.isEmpty()) {
-                                onToken.accept(delta);
-                            }
+                        if (error != null && !error.isEmpty()) {
+                            log.error("Agent error: {}", error);
+                            onToken.accept(AgentToken.error(error));
+                            return;
+                        }
+
+                        if (finish) {
+                            onToken.accept(AgentToken.finish(messageId));
+                        } else if (token != null && !token.isEmpty()) {
+                            onToken.accept(new AgentToken(token, agentId, agentName));
                         }
                     } catch (Exception e) {
-                        log.warn("Skip invalid NDJSON line: {}", trimmed, e);
+                        log.warn("Skip invalid SSE data line: {}", trimmed, e);
                     }
                 })
-                .doOnComplete(() -> log.info("Agent SSE streaming completed successfully"))
-                .doOnError(e -> log.error("Error during agent SSE streaming", e))
+                .doOnComplete(() -> log.info("Agent SSE streaming completed"))
+                .doOnError(e -> log.error("Agent SSE streaming error", e))
                 .subscribe();
+    }
+
+    /**
+     * Agent 流式响应的 token 数据。
+     */
+    public static class AgentToken {
+        private final String token;
+        private final String agentId;
+        private final String agentName;
+        private final String messageId;
+        private final boolean finish;
+        private final String error;
+
+        public AgentToken(String token, String agentId, String agentName) {
+            this.token = token;
+            this.agentId = agentId;
+            this.agentName = agentName;
+            this.messageId = null;
+            this.finish = false;
+            this.error = null;
+        }
+
+        private AgentToken(boolean finish, String messageId, String error) {
+            this.token = null;
+            this.agentId = null;
+            this.agentName = null;
+            this.messageId = messageId;
+            this.finish = finish;
+            this.error = error;
+        }
+
+        public static AgentToken finish(String messageId) {
+            return new AgentToken(true, messageId, null);
+        }
+
+        public static AgentToken error(String error) {
+            return new AgentToken(true, null, error);
+        }
+
+        public String getToken() { return token; }
+        public String getAgentId() { return agentId; }
+        public String getAgentName() { return agentName; }
+        public String getMessageId() { return messageId; }
+        public boolean isFinish() { return finish; }
+        public String getError() { return error; }
     }
 }
