@@ -2,31 +2,16 @@
 fastapi==0.109.0
 uvicorn[standard]==0.27.0
 
-# HTTP Client (Async)
+# HTTP Client (Async, for custom Agent HTTP API adapter)
 httpx==0.26.0
 
 # Data Validation
 pydantic==2.5.0
 pydantic-settings==2.1.0
 
-# SSE Support
-sse-starlette==1.8.2
-
-# LLM Orchestration
+# LLM Orchestration (P2 Orchestrator stage)
 langchain==0.1.0
-langgraph==0.0.8
+langgraph==0.0.20
 
 # Environment Variable Management
 python-dotenv==1.0.0
-
-# Other Dependencies
-websockets
-python-multipart
-sqlalchemy
-aiosqlite
-jose[cryptography]
-passlib[bcrypt]
-
-# H2 Database JDBC Bridge (与 Java 后端共享同一 H2 数据库)
-jaydebeapi==1.2.3
-jpype1>=1.7.0

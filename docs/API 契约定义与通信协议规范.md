@@ -453,53 +453,78 @@ t=3.0s  收到最终 chunk → 流式气泡消失，消息固化到列表
 ```
 ---
 ## 4. 内部 HTTP 接口（Spring Boot ↔ FastAPI）
+
 ### 4.1 基础约定
+
 | 约定项 | 规范 |
 |--------|------|
 | Base URL | http://localhost:8000 |
-| API 版本前缀 | `/api/v1/`（预留未来升级 `/api/v2/`，后期可直接去掉 v1 改为 `/api/`） |
+| API 前缀 | `/api/agent/` |
 | 请求格式 | Content-Type: application/json |
-| 流式响应 | Content-Type: application/x-ndjson（Newline Delimited JSON，每行一个 JSON 对象） |
-| 超时时间 | 120 秒（可在 Spring Boot 配置中修改） |
-| 字段命名 | snake_case（蛇形，与 Python Pydantic 模型对齐） |
+| 流式响应 | Content-Type: text/event-stream（SSE 格式，每行 `data: <JSON>\n\n`） |
+| 非流式响应 | Content-Type: application/json |
+| 超时时间 | 300 秒（可在 `config.py` 中修改 `AGENT_TIMEOUT`） |
+| 字段命名 | camelCase（驼峰，与 Java 后端 AgentGatewayService 序列化格式一致） |
+
 ### 4.2 Agent 对话接口
+
 ```http
-POST /api/v1/messages/chat/stream
+POST /api/agent/chat
 ```
+
 #### 请求体：
 ```json
 {
-  "message": "帮我写一个 React 计数器组件",
-  "agent_type": "claude",
-  "system_prompt": "你是一个前端开发专家，擅长 React 函数组件和 Hooks。",
-  "history": [
-    {"role": "user", "content": "之前的对话历史..."},
-    {"role": "assistant", "content": "之前的回复..."}
-  ]
+  "agentType": "claude_code",
+  "systemPrompt": "你是一个前端开发专家，擅长 React 函数组件和 Hooks。",
+  "context": "帮我写一个 React 计数器组件",
+  "stream": true,
+  "workingDirectory": "/path/to/project"
 }
 ```
-#### 字段说明：
-| 字段 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| message | string | 是 | 用户当前输入的消息文本 |
-| agent_type | string | 否 | Agent 类型，默认值 "claude" |
-| system_prompt | string | 否 | 系统提示词，覆盖 Agent 默认值 |
-| history | array | 否 | 对话历史上下文，格式为 `[{"role": "user"/"assistant", "content": "..."}]` |
-#### 流式响应
-##### 响应格式：NDJSON（每行一个独立 JSON 对象，无 `data:` 前缀）
+
+#### 请求字段说明：
+
+| 字段 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| agentType | string | 否 | `"claude_code"` | Agent 类型：`claude_code`（CLI）/ `codex`（CLI）/ `custom`（HTTP API） |
+| systemPrompt | string | 否 | `""` | 系统提示词，覆盖 Agent 默认值 |
+| context | string | 否 | `""` | 格式化后的聊天历史上下文，由 Java 后端组装 |
+| stream | boolean | 否 | `false` | `true`=SSE 流式返回，`false`=收集完整后返回 JSON |
+| workingDirectory | string | 否 | `null` | 本地 CLI Agent 执行任务的工作目录，仅 `claude_code`/`codex` 类型下有效 |
+
+#### 流式响应（stream=true）
+
+##### 响应格式：SSE（Server-Sent Events），每行 `data: <JSON>\n\n`
+
 ```text
-{"type": "msg_start", "message_id": "uuid-123", "role": "assistant"}
-{"type": "msg_chunk", "delta": "好的", "message_id": "uuid-123"}
-{"type": "msg_chunk", "delta": "，这是", "message_id": "uuid-123"}
-{"type": "msg_end", "message_id": "uuid-123"}
+data: {"token":"好的","finish":false,"agentId":"agent_claude_code","agentName":"Claude Code"}
+
+data: {"token":"，这是","finish":false,"agentId":"agent_claude_code","agentName":"Claude Code"}
+
+data: {"token":"生成的代码","finish":false,"agentId":"agent_claude_code","agentName":"Claude Code"}
+
+data: {"token":"","finish":true,"messageId":"msg_456"}
 ```
+
 ##### SSE chunk 字段说明：
+
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| type | string | 事件类型：`msg_start` / `msg_chunk` / `msg_end` |
-| message_id | string | 本条消息的 UUID 主键 |
-| delta | string | 本次推送的文本增量片段（仅 type=msg_chunk 时有值） |
-| role | string | 角色，仅 type=msg_start 时有值 |
+| token | string | 本次推送的文本增量片段 |
+| finish | boolean | `false`=流式传输中，`true`=本条消息发送完毕 |
+| agentId | string | 发送此消息的 Agent ID（如 `agent_claude_code`） |
+| agentName | string | Agent 显示名称（如 `Claude Code`） |
+| messageId | string | 消息 ID（`finish=true` 时返回） |
+
+#### 非流式响应（stream=false）
+
+```json
+{
+  "content": "好的，这是生成的 React 计数器组件代码：\n```javascript\nimport React, { useState } from 'react';\n\nconst Counter = () => {\n  const [count, setCount] = useState(0);\n  return <div>{count}</div>;\n};\n\nexport default Counter;\n```",
+  "messageId": "msg_456"
+}
+```
 ### 4.3 健康检查
 ```http
 GET /health
