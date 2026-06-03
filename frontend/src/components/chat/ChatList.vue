@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { Search as SearchIcon, Plus as PlusIcon, X as XIcon } from 'lucide-vue-next'
 import { useChatStore } from '../../stores/chat'
@@ -11,6 +11,21 @@ const { currentConversationId, conversationList } = storeToRefs(chatStore)
 
 const showCreateInput = ref(false)
 const createTitle = ref('')
+
+// ---- 搜索 ----
+const searchQuery = ref('')
+
+/** 根据搜索词过滤会话列表，匹配标题和 Agent 名称（大小写不敏感） */
+const filteredList = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase()
+  if (!q) return conversationList.value
+
+  return conversationList.value.filter(item => {
+    if (item.title.toLowerCase().includes(q)) return true
+    if (item.agentNames.some(name => name.toLowerCase().includes(q))) return true
+    return false
+  })
+})
 
 const handleSelect = (id: string) => {
   const conv = conversationList.value.find(c => c.id === id)
@@ -26,10 +41,11 @@ const handleCreateClick = () => {
   createTitle.value = ''
 }
 
-const confirmCreate = () => {
+const confirmCreate = async () => {
   const title = createTitle.value.trim()
   if (title) {
-    chatStore.createConversation(title)
+    const id = await chatStore.createConversation(title)
+    router.push('/chat/' + id)
   }
   showCreateInput.value = false
 }
@@ -85,12 +101,21 @@ const formatTime = (iso: string) => {
       </template>
       <template v-else>
         <div class="flex-1 bg-white border border-[#e2e8f0] rounded-xl flex items-center px-3 py-2 shadow-sm">
-          <SearchIcon :size="14" class="text-indigo-400 mr-2" />
+          <SearchIcon :size="14" class="text-indigo-400 mr-2 flex-shrink-0" />
           <input
+            v-model="searchQuery"
             type="text"
             placeholder="搜索会话"
             class="bg-transparent border-none outline-none text-xs w-full text-gray-700 placeholder:text-gray-400"
           />
+          <button
+            v-if="searchQuery"
+            @click="searchQuery = ''"
+            class="flex-shrink-0 ml-1 text-gray-400 hover:text-gray-600 transition-colors"
+            title="清除搜索"
+          >
+            <XIcon :size="12" />
+          </button>
         </div>
         <button
           @click="handleCreateClick"
@@ -104,7 +129,7 @@ const formatTime = (iso: string) => {
 
     <div class="flex-1 overflow-y-auto">
       <div
-        v-for="item in conversationList"
+        v-for="item in filteredList"
         :key="item.id"
         @click="handleSelect(item.id)"
         :class="[
