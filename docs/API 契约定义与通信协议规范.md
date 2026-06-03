@@ -372,14 +372,16 @@ GET /conversations/{id}/artifacts
 }
 ```
 ---
-## 3. WebSocket 协议（前端 ↔ Spring Boot）
-### 3.1 连接配置
+ ## 3. WebSocket 协议（前端 ↔ Spring Boot）
+### 3.1 连接配置（与实际代码完全对齐）
 | 配置项 | 值 |
 |--------|----|
 | 协议 | STOMP over WebSocket |
-| 连接端点 | http://localhost:8080/ws |
-| 降级方案 | SockJS（/ws 不可用时自动降级） |
+| 连接端点 | **http://localhost:8080/ws-chat** |
+| 降级方案 | SockJS（/ws-chat 不可用时自动降级，自动追加 `/info` 后缀检测可用性） |
 | 心跳 | 客户端自动发送，默认 10 秒间隔 |
+| STOMP 消息前缀 | `/app` |
+| 订阅主题模式 | `/topic/conversation.{conversationId}` |
 ### 3.2 目的地映射
 | 方向 | 目的地 | 说明 |
 |------|--------|------|
@@ -403,15 +405,16 @@ GET /conversations/{id}/artifacts
 > **注意**：前端不再传递 `agentType` 和 `systemPrompt`。Agent 调度由 Orchestrator 在 Python 层自动完成，前端不感知任务拆分过程。
 #### 3.3.2 接收消息（后端 → 前端）
 ##### 订阅地址: `/topic/conversation.{conversationId}`
-##### 消息块格式（MessageChunk）：
+##### 消息块格式（MessageChunk，当前代码实际定义）：
 ```json
 {
   "content": "好的",
   "isComplete": false,
-  "agentId": "agent_claude_001",
+  "agentId": "agent_claude_code",
   "agentName": "Claude Code",
   "messageType": "text",
-  "messageId": "msg_002"
+  "messageId": null,
+  "type": "chunk"
 }
 ```
 ##### 字段说明：
@@ -419,12 +422,16 @@ GET /conversations/{id}/artifacts
 |------|------|------|
 | content | string | 消息内容片段（流式时为 token，完成时为完整内容） |
 | isComplete | boolean | false=流式传输中，true=本条消息发送完毕 |
-| agentId | string | 发送此消息的 Agent ID，前端据此区分不同 Agent 发言并切换头像 |
-| agentName | string | 发送此消息的 Agent 名称 |
-| messageType | string | 消息类型：text / code / diff / preview_card |
+| agentId | string | **每个 chunk 都携带**，发送此消息的 Agent ID，前端据此区分不同 Agent 发言并切换头像，确保 agent_switch 丢失也能正确渲染 |
+| agentName | string | **每个 chunk 都携带**，发送此消息的 Agent 名称，冗余保障 |
+| messageType | string | 消息类型：text / code / diff / preview_card / error |
 | messageId | string | 消息 ID（isComplete=true 时返回，用于后续操作） |
-##### Agent 切换事件（agent_switch）
-当 Orchestrator 切换调用的 Agent 时（如从 Coder 切到 Designer），后端推送切换通知：
+| type | string | chunk / agent_switch / finish 事件类型标识 |
+
+&gt; **P3 架构评审修正**：与架构评审问题清单 P3 对齐，每个 MessageChunk 都携带 agentId 和 agentName，冗余但极其健壮。即使 agent_switch 事件在网络抖动中先收到 chunk 后收到切换通知，前端依然能正确渲染头像。
+
+##### Agent 切换事件（agent_switch，P1 阶段保留用于过渡动画）
+当 Orchestrator 切换调用的 Agent 时（群聊多 Agent 模式），后端推送切换通知，可用于触发"正在切换 Agent"的过渡动画效果：
 ```json
 {
   "type": "agent_switch",
@@ -432,7 +439,7 @@ GET /conversations/{id}/artifacts
   "agentName": "Codex"
 }
 ```
-前端收到此事件后，后续渲染的消息气泡自动切换为对应 Agent 的头像和名称。
+前端收到此事件后，可播放平滑过渡动画，然后后续 chunk 继续携带 agentId/agentName 按规则渲染。
 ### 3.4 流式推送时序
 ```text
 时间轴：前端视角的消息接收过程
@@ -472,32 +479,42 @@ t=3.0s  收到最终 chunk → 流式气泡消失，消息固化到列表
 POST /api/agent/chat
 ```
 
-#### 请求体：
+#### 请求体（架构评审 P1 修正：结构化 messages 数组替代裸字符串 context）：
 ```json
 {
   "agentType": "claude_code",
   "systemPrompt": "你是一个前端开发专家，擅长 React 函数组件和 Hooks。",
-  "context": "帮我写一个 React 计数器组件",
+  "messages": [
+    {"role": "user", "content": "帮我写一个 React 计数器组件"},
+    {"role": "agent", "agentName": "Claude Code", "content": "好的，我来帮你生成..."}
+  ],
   "stream": true,
   "workingDirectory": "/path/to/project"
 }
 ```
 
+&gt; **重要 P1 修正说明**：与架构评审问题清单 P1 对齐，将原裸字符串 `context` 字段替换为结构化 `messages` 数组，与 Claude API / OpenAI API 消息格式天然兼容，Python 端无需二次解析。彻底避免了两侧格式不一致导致 Agent"忘记上文"的集成故障。
+
 #### 请求字段说明：
 
 | 字段 | 类型 | 必填 | 默认值 | 说明 |
 |------|------|------|--------|------|
-| agentType | string | 否 | `"claude_code"` | Agent 类型：`claude_code`（CLI）/ `codex`（CLI）/ `custom`（HTTP API） |
-| systemPrompt | string | 否 | `""` | 系统提示词，覆盖 Agent 默认值 |
-| context | string | 否 | `""` | 格式化后的聊天历史上下文，由 Java 后端组装 |
+| agentType | string | 否 | `"claude_code"` | Agent 类型：`claude_code`（CLI）/ `codex`（CLI）/ `custom`（HTTP API），空值表示 Orchestrator 多 Agent 调度模式 |
+| systemPrompt | string | 否 | `""` | 系统提示词，覆盖 Agent 数据库中的默认 system_prompt |
+| messages | array | 否 | `[]` | 结构化对话历史数组，每个元素包含 role/content/可选 agentName，替代原来的裸字符串 context |
 | stream | boolean | 否 | `false` | `true`=SSE 流式返回，`false`=收集完整后返回 JSON |
 | workingDirectory | string | 否 | `null` | 本地 CLI Agent 执行任务的工作目录，仅 `claude_code`/`codex` 类型下有效 |
+
+##### 单 Agent 模式 vs 多 Agent 模式路由（新增设计文档对齐）
+- `agentType` 有具体值 → **单 Agent 模式**，直接调用对应适配器，每个 chunk 携带统一的 agentId/agentName，不推送 agent_switch
+- `agentType` 为 null 或 "orchestrator" → **多 Agent 群聊模式**，启动 Orchestrator 调度器，动态生成执行计划，推送 agent_switch 事件切换发言人
 
 #### 流式响应（stream=true）
 
 ##### 响应格式：SSE（Server-Sent Events），每行 `data: <JSON>\n\n`
 
 ```text
+-- 单 Agent 模式（无 agent_switch，直接流式输出）
 data: {"token":"好的","finish":false,"agentId":"agent_claude_code","agentName":"Claude Code"}
 
 data: {"token":"，这是","finish":false,"agentId":"agent_claude_code","agentName":"Claude Code"}
@@ -507,15 +524,31 @@ data: {"token":"生成的代码","finish":false,"agentId":"agent_claude_code","a
 data: {"token":"","finish":true,"messageId":"msg_456"}
 ```
 
+```text
+-- 多 Agent 群聊模式（Orchestrator 调度，含 agent_switch）
+data: {"type":"agent_switch","agentId":"agent_claude_code","agentName":"Claude Code"}
+
+data: {"token":"我来设计前端页面...","finish":false,"agentId":"agent_claude_code","agentName":"Claude Code"}
+
+data: {"token":"代码完成","finish":false,"agentId":"agent_claude_code","agentName":"Claude Code"}
+
+data: {"type":"agent_switch","agentId":"agent_codex_code","agentName":"Codex"}
+
+data: {"token":"我来审查代码...","finish":false,"agentId":"agent_codex_code","agentName":"Codex"}
+
+data: {"token":"","finish":true,"messageId":"msg_789"}
+```
+
 ##### SSE chunk 字段说明：
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | token | string | 本次推送的文本增量片段 |
 | finish | boolean | `false`=流式传输中，`true`=本条消息发送完毕 |
-| agentId | string | 发送此消息的 Agent ID（如 `agent_claude_code`） |
-| agentName | string | Agent 显示名称（如 `Claude Code`） |
+| agentId | string | **每个 chunk 都携带**，发送此消息的 Agent ID（如 `agent_claude_code`），冗余保障 |
+| agentName | string | **每个 chunk 都携带**，Agent 显示名称（如 `Claude Code`），冗余保障 |
 | messageId | string | 消息 ID（`finish=true` 时返回） |
+| type | string | 可选，标识 agent_switch 控制事件类型 |
 
 #### 非流式响应（stream=false）
 
