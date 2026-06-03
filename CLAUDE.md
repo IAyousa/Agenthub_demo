@@ -27,26 +27,28 @@ Vue 3 Frontend (localhost:5173)
 ## Project Structure (Actual Code)
 
 ```
-frontend/                          # Vue 3 Frontend — ~85% complete
+frontend/                          # Vue 3 Frontend — ~90% complete
 ├── src/
 │   ├── main.ts                    # Entry: Pinia + Vue + Router + Monaco worker config
-│   ├── App.vue                    # Root: SideBar + <RouterView> + Transition animation
+│   ├── App.vue                    # Root: SideBar + <RouterView v-slot> + Transition animation
 │   ├── style.css                  # @import "tailwindcss"
 │   ├── env.d.ts                   # Vue SFC type declarations
 │   ├── api/
 │   │   └── index.ts               # Axios instance: baseURL localhost:8080, timeout 30s, interceptors
 │   ├── router/
 │   │   └── index.ts               # Vue Router 4: / → redirect /chat/conv_frontend_001, /chat/:conversationId (ChatView), /office (lazy OfficeView)
-│   ├── stores/chat.ts             # Pinia store: conversations, conversationList (ConversationSummary[]), offices[], office CRUD, artifact state, mock data
+│   ├── stores/chat.ts             # Pinia store: conversations, conversationList, agents, offices, artifact state, WebSocket send/stream callbacks
+│   ├── websocket/
+│   │   └── wsClient.ts            # STOMP client singleton: connect/subscribe/sendMessage via SockJS, auto-reconnect, heartbeat
 │   ├── views/
-│   │   ├── ChatView.vue           # Route container: watch route.params → chatStore.selectConversation() {immediate}, 3-col layout
+│   │   ├── ChatView.vue           # Route container: watch route.params → selectConversation() {immediate}, onMounted → initWebSocket()
 │   │   └── OfficeView.vue         # Thin wrapper around office/OfficeView.vue component
 │   └── components/
 │       ├── chat/
-│       │   ├── ChatList.vue       # Conversation list: search bar, create btn, route push on select, agent tags, relative time
-│       │   ├── ChatWindow.vue     # Main chat area: header + message list + MessageInput. Simulates AI via setTimeout
+│       │   ├── ChatList.vue       # Conversation list: search, create btn, route push on select, agent tags, relative time
+│       │   ├── ChatWindow.vue     # Main chat area: header + message list + MessageInput. Real WebSocket/STOMP send, offline toast
 │       │   ├── ChatMessage.vue    # Message bubble (text/code/artifact_preview), avatar, click→artifact overlay
-│       │   ├── MessageInput.vue   # Shared input: toolbar + textarea + send btn, emits 'send' event
+│       │   ├── MessageInput.vue   # Shared input: toolbar + textarea + send btn, emits 'send'. Keyed by conversationId for auto-clear
 │       │   ├── CodeEditor.vue     # Monaco Editor: vs-dark, copy btn, ResizeObserver, reactive code/lang props
 │       │   ├── ArtifactSandbox.vue # Iframe sandbox (srcdoc), HTML/CSS/JS/TS preview with error handling
 │       │   └── ArtifactWindow.vue  # Full-screen overlay: preview/code toggle, back button
@@ -56,7 +58,7 @@ frontend/                          # Vue 3 Frontend — ~85% complete
 │           ├── CreateOfficeModal.vue # Modal for creating new office rooms (name/description/maxMembers/theme)
 │           ├── OfficeChair.vue    # SVG chair with backrest and legs
 │           └── StickFigure.vue    # Detailed SVG character: idle breathe, eye blink, walk/kick/shocked, hair/clothing/face per role
-├── package.json                   # vue 3.5, pinia 3, vue-router 4.6, gsap 3, monaco-editor 0.55, @stomp/stompjs 7, axios, tailwind 4, TS 6, Vite 8
+├── package.json                   # vue 3.5, pinia 3, vue-router 4.6, gsap 3, monaco-editor 0.55, @stomp/stompjs 7, sockjs-client, axios, tailwind 4, TS 6, Vite 8
 ├── vite.config.ts                 # Vue + @tailwindcss/vite plugins only (no proxy, no @ alias)
 └── index.html
 
@@ -69,13 +71,17 @@ backend-java/                      # Spring Boot — ~45% complete (data layer d
 │   │   ├── ArtifactConfig.java    # Static resource mapping: /artifacts/** → file:./artifacts/
 │   │   └── SecurityConfig.java    # Comment placeholder (Spring Security + JWT reserved for P1)
 │   ├── controller/
-│   │   └── WebSocketController.java # @MessageMapping("/chat.send") — wired to AgentGatewayService but handler body empty
+│   │   ├── WebSocketController.java # @MessageMapping("/chat.send") — wired to AgentGatewayService but handler body empty
+│   │   ├── AgentController.java   # CRUD: GET/POST /agents, GET /agents/{id}. Type validation, avatarUrl, isBuiltin detection
+│   │   └── ArtifactController.java # CRUD: POST/GET/DELETE /artifacts, GET /conversations/{id}/artifacts. Path traversal protection
 │   ├── dto/
-│   │   └── SendMessageRequest.java # conversationId, content, agentId (Lombok @Data)
-│   ├── model/                     # User, Conversation, Message, Agent JPA entities (ManyToMany conv_agents). Message has idx_messages_conversation_id + idx_messages_pinned.
-│   ├── repository/                # 4 JPA data access interfaces (findByType, findByConversationIdOrderByCreatedAt, paging, etc.)
+│   │   ├── SendMessageRequest.java # conversationId, content, agentId (Lombok @Data)
+│   │   └── ArtifactDTO.java       # id, filename, fileSize, conversationId, messageId, createdAt
+│   ├── model/                     # User, Conversation, Message, Agent, Artifact JPA entities. @PrePersist UUID + timestamps. Message has 2 DB indexes.
+│   ├── repository/                # 6 JPA data access interfaces (Conversation, Message, Agent, Artifact, User repositories)
 │   └── service/
-│       └── AgentGatewayService.java # FULL: WebClient SSE parser, AgentToken callback (token/finish/error), aligned to /api/agent/chat contract
+│       ├── AgentGatewayService.java # FULL: WebClient SSE parser, AgentToken callback (token/finish/error), aligned to /api/agent/chat contract
+│       └── ArtifactService.java   # Upload (UUID collision prevention), query, download, delete, @PostConstruct orphan recovery, path traversal protection
 ├── src/main/resources/
 │   ├── application.yml            # H2 file-based DB (AUTO_SERVER=TRUE), JPA ddl-auto update, CORS, port 8080
 │   └── data.sql                   # Seed data: Claude Code + Codex agents (H2 MERGE INTO syntax)
@@ -97,7 +103,7 @@ agent-service/                     # FastAPI — ~75% complete, stateless gatewa
 ├── requirements.txt               # fastapi, uvicorn, httpx, pydantic, pydantic-settings, sse-starlette, langchain, langgraph, etc.
 └── .env                           # ANTHROPIC_API_KEY, OPENAI_API_KEY (gitignored; CLI tools read from system env, Agent Service never touches keys)
 
-> **Doc vs code gaps**: docs planned `http_adapter.py` (custom Agent HTTP API, D13) and `orchestrator.py` (multi-agent scheduling, P2) — neither implemented yet. The agents/conversations/artifacts CRUD endpoints originally planned under `app/api/endpoints/` were removed when Python became a stateless gateway; only `messages.py` remains.
+> **Doc vs code gaps**: docs planned `http_adapter.py` (custom Agent HTTP API, D13) and `orchestrator.py` (multi-agent scheduling, P2) — neither implemented yet. CRUD endpoints in Python were removed when it became a stateless gateway; only `messages.py` remains.
 
 docs/                              # 5 design docs (v1.0)
 ├── 项目概述与技术栈总览.md
@@ -109,24 +115,29 @@ docs/                              # 5 design docs (v1.0)
 
 ## Current State Summary
 
-### Frontend — ~85% (UI + routing done, mock data, no real API integration)
+### Frontend — ~90% (UI + routing + WebSocket send done, REST API calls pending)
 - Vue Router 4: `/chat/:conversationId` (ChatView), `/office` (lazy), root redirect
-- 3-col IM layout: SideBar (active via route.name) + ChatList (route push, create conv) + ChatWindow (auto-scroll, MessageInput decoupled)
+- 3-col IM layout: SideBar (route-based active state) + ChatList (route push, create conv) + ChatWindow (auto-scroll, MessageInput decoupled)
 - Message types: text / code (Monaco Editor) / artifact_preview (click→full-screen overlay)
+- **C7 complete**: ChatWindow connected to real STOMP/WebSocket, replaced setTimeout mock
+- WebSocket initialized in `ChatView.onMounted`, `sendMessage()` checks `ws.connected` — sends via WS or shows offline toast
+- Offline toast: floating "Service connection issue, please retry" prompt (4s auto-dismiss, manual X close, dismiss on conversation switch)
+- Conversation switch: auto-cleans loading/error/streaming state, MessageInput re-created via `:key` for input clear
 - Office scene: SVG 8-seat 3D desk layout, GSAP kick-out/walk-in animations, multi-office management (create/disband/switch), invite panel
-- Axios configured (interceptors ready), STOMP WebSocket client **not connected**
-- **All mock data** — ChatWindow simulates AI via setTimeout, ChatList shows conversations not agents
+- Axios configured (interceptors ready), API calls gracefully degrade to mock data on failure
+- **Pending**: REST API conversation list/agent list loading, conversation creation API, end-to-end AI reply stream (waiting for backend WebSocketController)
 
-### Backend Java — ~45% (data layer complete, controllers/services pending)
+### Backend Java — ~45% (data layer + agent/artifact REST done, chat pipeline pending)
 - Spring Boot compiles and starts on port 8080
-- **Config layer done**: WebSocketConfig (STOMP + SockJS), CorsConfig (Servlet Filter), ArtifactConfig (static resource mapping), SecurityConfig (comment placeholder, P1)
-- **Data layer done**: 4 JPA entities (all with @PrePersist UUID generation + timestamps), Message entity has 2 DB indexes
-- 4 Repository interfaces (custom queries: paging, sorting, conditional filtering)
+- **Config layer done**: WebSocketConfig (STOMP + SockJS at `/ws-chat`), CorsConfig (Servlet Filter), ArtifactConfig (static resource mapping), SecurityConfig (placeholder, P1)
+- **Data layer done**: 5 JPA entities (all with @PrePersist UUID generation + timestamps), Message entity has 2 DB indexes
+- 6 Repository interfaces (User, Conversation, Message, Agent, Artifact + custom queries)
 - `data.sql` seeds Claude Code + Codex agents (H2 `MERGE INTO` syntax)
+- **REST controllers done**: AgentController (GET/POST /agents, GET /agents/{id}, type validation, avatarUrl, isBuiltin), ArtifactController (upload/download/list/delete with path traversal protection)
 - `AgentGatewayService` **fully implemented**: WebClient SSE parser → AgentToken callback (token/finish/error), aligned to `/api/agent/chat` contract
-- `WebSocketController` has @MessageMapping but empty handler body
+- `WebSocketController` has @MessageMapping("/chat.send") but **empty handler body**
 - H2 file-based DB, Java-exclusive (Python is stateless gateway, no DB access)
-- **Pending**: ConversationService, MessageService (context building), WebSocketSessionManager, WebSocket message push logic
+- **Pending**: ConversationService/Controller, MessageService (context building), WebSocketSessionManager, WebSocket message push logic, WebSocketController handler implementation
 
 ### Agent Service — ~75% (adapters complete, stateless gateway)
 - FastAPI starts, single router `/api/agent` with `POST /chat`
