@@ -21,6 +21,7 @@ watch(
 
 onMounted(() => {
   chatStore.mobileView = 'list'
+  chatStore.initWebSocket()
 })
 </script>
 

@@ -6,9 +6,11 @@ import SideBar from './components/layout/SideBar.vue'
   <div class="h-screen w-screen flex overflow-hidden font-sans select-none">
     <SideBar class="flex-shrink-0" />
 
-    <Transition name="main-view" mode="out-in">
-      <RouterView />
-    </Transition>
+    <RouterView v-slot="{ Component }">
+      <Transition name="main-view" mode="out-in">
+        <component :is="Component" />
+      </Transition>
+    </RouterView>
   </div>
 </template>
 

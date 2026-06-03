@@ -301,6 +301,7 @@ export const useChatStore = defineStore('chat', () => {
 
   const handleWsError = (err: string) => {
     error.value = err
+    isLoading.value = false
   }
 
   const wsCallbacks: WsCallbacks = {
@@ -378,9 +379,8 @@ export const useChatStore = defineStore('chat', () => {
   function initWebSocket() {
     const ws = getWsClient(wsCallbacks)
     ws.connect()
-    if (currentConversationId.value) {
-      ws.subscribe(currentConversationId.value)
-    }
+    // 订阅由 handleConnectionChange 在 STOMP 连接就绪后自动完成，
+    // 不能在这里同步调用 subscribe()——v7 要求连接已建立。
   }
 
   /**
@@ -405,6 +405,9 @@ export const useChatStore = defineStore('chat', () => {
     const prevId = currentConversationId.value
     currentConversationId.value = id
     closeArtifact()
+    isLoading.value = false
+    streamingMessageId.value = null
+    error.value = null
 
     // 加载新会话消息
     if (id) {
@@ -433,7 +436,7 @@ export const useChatStore = defineStore('chat', () => {
     const convId = currentConversationId.value
     if (!convId || !content.trim()) return
 
-    // 1. 添加用户消息
+    // 1. 先添加用户消息（确保无论后端是否可用，用户输入始终有反馈）
     const userMsg: Message = {
       id: `temp_user_${Date.now()}`,
       role: 'user',
@@ -447,12 +450,15 @@ export const useChatStore = defineStore('chat', () => {
     }
     conversations.value[convId].messages.push(userMsg)
 
-    // 2. 标记加载中（触发 ChatWindow 显示"正在思考..."动画）
+    // 2. 仅在 WebSocket 已连接时发送；未连接则提示用户
+    const ws = getWsClient(wsCallbacks)
+    if (!ws.connected) {
+      error.value = '服务端连接出现问题，请稍后重试'
+      return
+    }
+
     isLoading.value = true
     error.value = null
-
-    // 3. 通过 WebSocket 发送
-    const ws = getWsClient(wsCallbacks)
     ws.sendMessage({ conversationId: convId, content: content.trim() })
   }
 
