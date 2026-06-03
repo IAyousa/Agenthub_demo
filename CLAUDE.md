@@ -3,8 +3,8 @@
 ## Project Identity
 
 - **Name**: AgentHub (package name: `agenthub`)
-- **Concept**: IM-style (WeChat PC-inspired) chat interface where users collaborate with multiple AI Agents. Agents generate code/web artifacts with inline preview and editing.
-- **Team**: 4 CS juniors. Primary language Java/Spring Boot, Python basics with AI-assist.
+- **Concept**: IM-style (WeChat PC-inspired) chat interface where users collaborate with multiple AI Agents running locally via CLI (Claude Code / OpenAI Codex), generating code and artifacts with inline preview.
+- **Team**: 4 CS juniors. Primary Java/Spring Boot, Python basics with AI-assist.
 - **Repo**: `D:\HuaweiMoveData\Users\Yao\Desktop\Trae_project`
 - **Branch**: `dev` (main: `main`)
 - **Git user**: IAyousa
@@ -15,168 +15,138 @@
 Vue 3 Frontend (localhost:5173)
   --REST/STOMP-WS--> Spring Boot (localhost:8080)
                        --HTTP+SSE--> FastAPI Agent Service (localhost:8000)
-                       \                        /
-                        +--- H2 File (AUTO_SERVER) ---+
-                                      |
-                                      └── External LLM APIs (Claude, Codex, DeepSeek)
+                                      --subprocess--> Claude Code / Codex CLI (local machine)
 ```
 
-- **Frontend**: Vue 3.5 + TypeScript + Pinia + Tailwind CSS 4 + Vite 8
-- **Backend**: Spring Boot 3.2.5 + Java 17 + H2 (dev, AUTO_SERVER=TRUE file mode, shared with Python) / PostgreSQL (doc plan) + JPA
-- **Agent Service**: FastAPI 0.109 + Python 3.11 + LangChain/LangGraph
-- **Communication**: STOMP over WebSocket (frontend↔backend), REST API, SSE streaming (backend↔agent)
+- **Frontend**: Vue 3.5 + TypeScript + Pinia + Vue Router 4 + Tailwind CSS 4 + Vite 8
+- **Backend**: Spring Boot 3.2.5 + Java 17 + H2 (file mode, sole data source) + JPA + STOMP/WebSocket
+- **Agent Service**: FastAPI 0.109 + Python 3.11, stateless gateway, invokes local CLI tools via asyncio subprocess, no database access
+- **Agent Execution**: Local CLI — `claude -p "prompt"` / `codex exec "prompt"`, stdout streaming
+- **Communication**: STOMP over WebSocket (frontend↔backend), HTTP+SSE (backend↔agent)
 
 ## Project Structure (Actual Code)
 
 ```
-frontend/                          # Vue 3 Frontend — ~80% complete (UI + routing done, pending real API integration)
+frontend/                          # Vue 3 Frontend — ~85% complete
 ├── src/
-│   ├── main.ts                    # Entry: Pinia + Vue + Monaco worker config
-│   ├── App.vue                    # Root: SideBar + RouterView + Transition (view switching via Vue Router)
+│   ├── main.ts                    # Entry: Pinia + Vue + Router + Monaco worker config
+│   ├── App.vue                    # Root: SideBar + <RouterView> + Transition animation
 │   ├── style.css                  # @import "tailwindcss"
 │   ├── env.d.ts                   # Vue SFC type declarations
 │   ├── api/
-│   │   └── index.ts               # Axios instance: baseURL localhost:8080, timeout 30s, request/response interceptors
+│   │   └── index.ts               # Axios instance: baseURL localhost:8080, timeout 30s, interceptors
 │   ├── router/
-│   │   └── index.ts               # Vue Router 4: /chat/:conversationId (dynamic), /office (lazy-loaded), root redirect
-│   ├── stores/chat.ts             # Pinia store: conversations, messages, officeMembers, artifact state (currently mock data)
+│   │   └── index.ts               # Vue Router 4: / → redirect /chat/conv_frontend_001, /chat/:conversationId (ChatView), /office (lazy OfficeView)
+│   ├── stores/chat.ts             # Pinia store: conversations, conversationList (ConversationSummary[]), offices[], office CRUD, artifact state, mock data
 │   ├── views/
-│   │   ├── ChatView.vue           # Route-level container: watch route.params → chatStore.selectConversation() {immediate}
-│   │   └── OfficeView.vue         # Route-level container for office scene (P2 bottom drawer chat panel pending)
+│   │   ├── ChatView.vue           # Route container: watch route.params → chatStore.selectConversation() {immediate}, 3-col layout
+│   │   └── OfficeView.vue         # Thin wrapper around office/OfficeView.vue component
 │   └── components/
 │       ├── chat/
-│       │   ├── ChatList.vue       # Conversation list (useRouter push on select, auto-route by conversation.type)
+│       │   ├── ChatList.vue       # Conversation list: search bar, create btn, route push on select, agent tags, relative time
 │       │   ├── ChatWindow.vue     # Main chat area: header + message list + MessageInput. Simulates AI via setTimeout
-│       │   ├── ChatMessage.vue    # Message bubble renderer (text/code/artifact_preview)
-│       │   ├── MessageInput.vue   # Shared input component: toolbar + textarea + send button (reusable in OfficeView)
-│       │   ├── CodeEditor.vue    # Monaco Editor wrapper (vs-dark, readOnly, copy button, ResizeObserver)
-│       │   ├── ArtifactSandbox.vue # Iframe sandbox (srcdoc), renders HTML/CSS/JS previews
+│       │   ├── ChatMessage.vue    # Message bubble (text/code/artifact_preview), avatar, click→artifact overlay
+│       │   ├── MessageInput.vue   # Shared input: toolbar + textarea + send btn, emits 'send' event
+│       │   ├── CodeEditor.vue     # Monaco Editor: vs-dark, copy btn, ResizeObserver, reactive code/lang props
+│       │   ├── ArtifactSandbox.vue # Iframe sandbox (srcdoc), HTML/CSS/JS/TS preview with error handling
 │       │   └── ArtifactWindow.vue  # Full-screen overlay: preview/code toggle, back button
-│       ├── layout/SideBar.vue     # Left nav bar (dark indigo): chat/office icons, uses useRoute/useRouter for active state
+│       ├── layout/SideBar.vue     # Left nav (dark indigo): chat/office/settings icons, useRoute/useRouter for active state
 │       └── office/
-│           ├── OfficeView.vue     # SVG office scene: 8 seats, 3D desk, door, GSAP kick/walk animations
-│           ├── CreateOfficeModal.vue # Modal for creating new office rooms (P2)
-│           ├── OfficeChair.vue    # SVG chair component
-│           └── StickFigure.vue    # SVG character: idle breathe, eye blink, walk, kick, shocked states
-├── package.json                   # vue 3.5, pinia 3, gsap 3, monaco-editor, @stomp/stompjs, axios, tailwindcss 4
-├── vite.config.ts                 # Vue + Tailwind plugins
+│           ├── OfficeView.vue     # SVG office: 8 seats, 3D desks, door, plant decor, GSAP kick/walk, invite panel, multi-office management
+│           ├── CreateOfficeModal.vue # Modal for creating new office rooms (name/description/maxMembers/theme)
+│           ├── OfficeChair.vue    # SVG chair with backrest and legs
+│           └── StickFigure.vue    # Detailed SVG character: idle breathe, eye blink, walk/kick/shocked, hair/clothing/face per role
+├── package.json                   # vue 3.5, pinia 3, vue-router 4.6, gsap 3, monaco-editor 0.55, @stomp/stompjs 7, axios, tailwind 4, TS 6, Vite 8
+├── vite.config.ts                 # Vue + @tailwindcss/vite plugins only (no proxy, no @ alias)
 └── index.html
 
-backend-java/                      # Spring Boot — entities + repos done, controllers/services WIP
+backend-java/                      # Spring Boot — ~45% complete (data layer done, business layer pending)
 ├── src/main/java/com/agenthub/
 │   ├── AgenthubApplication.java  # @SpringBootApplication entry
 │   ├── config/
-│   │   ├── WebSocketConfig.java   # STOMP: /app prefix, /topic broker, /ws-chat endpoint + SockJS
-│   │   └── CorsConfig.java        # CorsFilter Bean, reads cors.allowed-origins from yml
+│   │   ├── WebSocketConfig.java   # STOMP: /app prefix, /topic broker, /ws-chat + SockJS, CORS origins from yml
+│   │   ├── CorsConfig.java        # CorsFilter Bean (Servlet Filter layer, reads cors.allowed-origins)
+│   │   ├── ArtifactConfig.java    # Static resource mapping: /artifacts/** → file:./artifacts/
+│   │   └── SecurityConfig.java    # Comment placeholder (Spring Security + JWT reserved for P1)
 │   ├── controller/
-│   │   └── WebSocketController.java # @MessageMapping("/chat.send") — empty handler
+│   │   └── WebSocketController.java # @MessageMapping("/chat.send") — wired to AgentGatewayService but handler body empty
 │   ├── dto/
 │   │   └── SendMessageRequest.java # conversationId, content, agentId (Lombok @Data)
-│   ├── model/
-│   │   ├── User.java              # JPA entity: id, username, password, avatarUrl
-│   │   ├── Conversation.java      # JPA entity: id, title, type, agents (ManyToMany → conv_agents)
-│   │   ├── Message.java           # JPA entity: id, conversationId, senderId/Type, content, messageType, isPinned
-│   │   └── Agent.java             # JPA entity: id, name, type, avatarUrl, systemPrompt, capabilities
-│   ├── repository/
-│   │   ├── UserRepository.java
-│   │   ├── ConversationRepository.java
-│   │   ├── MessageRepository.java
-│   │   └── AgentRepository.java
+│   ├── model/                     # User, Conversation, Message, Agent JPA entities (ManyToMany conv_agents). Message has idx_messages_conversation_id + idx_messages_pinned.
+│   ├── repository/                # 4 JPA data access interfaces (findByType, findByConversationIdOrderByCreatedAt, paging, etc.)
 │   └── service/
-│       └── AgentGatewayService.java # WebClient baseUrl=localhost:8000, sendToAgent() unimplemented
+│       └── AgentGatewayService.java # FULL: WebClient SSE parser, AgentToken callback (token/finish/error), aligned to /api/agent/chat contract
 ├── src/main/resources/
-│   ├── application.yml            # H2 file-based DB (AUTO_SERVER=TRUE), JPA ddl-auto update, CORS config, port 8080
-│   └── data.sql                   # Seed data: Claude Code + Codex agents
+│   ├── application.yml            # H2 file-based DB (AUTO_SERVER=TRUE), JPA ddl-auto update, CORS, port 8080
+│   └── data.sql                   # Seed data: Claude Code + Codex agents (H2 MERGE INTO syntax)
 └── pom.xml                        # SB 3.2.5: web, websocket, jpa, webflux, postgresql, h2, lombok
 
-agent-service/                     # FastAPI — ~65% complete (full layered architecture, pending Orchestrator)
-├── main.py                        # FastAPI app, CORS, routers at /api/v1/{agents,conversations,messages,artifacts}
-├── models.py                      # Pydantic: Agent, Conversation, Message, CodeBlock, DiffBlock, MessageContent (DB-agnostic)
-├── config.py                      # Settings (pydantic-settings): Claude/Codex/DeepSeek API keys, H2 DB path, timeout 120s
+agent-service/                     # FastAPI — ~75% complete, stateless gateway, no DB access
+├── main.py                        # FULL: FastAPI app, CORS, /api/agent router, global error handlers (400/404/500), /health with uptime
+├── models.py                      # FULL: AgentChatRequest, AgentChatResponse, HealthResponse, ErrorResponse — camelCase, aligned to API contract §4
+├── config.py                      # FULL: pydantic-settings BaseSettings, Claude/Codex CLI commands, timeout 300s, AGENT_WORKING_DIRECTORY
 ├── adapters/
-│   ├── base_adapter.py            # Abstract: async chat(message, history, system_prompt) — stream token yield
-│   ├── adapter_factory.py         # Registry pattern: get_adapter(agent_type) returns matching adapter instance
-│   ├── claude_adapter.py          # Anthropic Messages API adapter, streaming via async generator
-│   ├── codex_adapter.py           # OpenAI Chat Completions API adapter, streaming via async generator
-│   └── deepseek_adapter.py        # DeepSeek V4 adapter, OpenAI-compatible format, streaming via async generator
-├── prompts/system_prompts.py      # 2 stub prompts: coder, designer (pending real prompt engineering)
-├── app/
-│   ├── api/endpoints/
-│   │   ├── __init__.py
-│   │   ├── agents.py              # Full CRUD: GET / (list from DB), GET /{id}, POST / (create)
-│   │   ├── conversations.py       # Full CRUD: GET /, POST /, GET /{id}, PATCH /{id}, DELETE /{id}
-│   │   ├── messages.py            # POST /chat/stream — routes to Orchestrator → adapter → real SSE streaming
-│   │   └── artifacts.py           # Full CRUD: POST /upload, GET /{id}, GET /conversations/{id}/artifacts
-│   └── db/                        # Repository Pattern data access layer
-│       ├── connection.py          # JVM bridge: JPype + jaydebeapi → H2 AUTO_SERVER=TRUE (shared with Java backend)
-│       └── repository.py          # Parameterized queries: agents/conversations/messages CRUD (H2 JDBC implementation)
-├── agenthub.db                    # Shared H2 database file (read/write by both Java & Python processes)
-├── requirements.txt               # fastapi, pydantic-settings, jpype1, jaydebeapi (H2 JDBC bridge)
-└── .env                           # CLAUDE_API_KEY, CODEX_API_KEY, DEEPSEEK_API_KEY (gitignored)
+│   ├── base_adapter.py            # FULL: strip_ansi(), build_prompt(), chat_stream() abstract, chunk contract (msg_start/msg_chunk/msg_end/error)
+│   ├── adapter_factory.py         # FULL: ADAPTER_MAP {claude_code, codex, custom} → ValueError on unknown type
+│   ├── claude_adapter.py          # FULL: asyncio subprocess claude -p "prompt", stdout streaming, stderr drain, timeout/kill, exit code check
+│   └── codex_adapter.py           # FULL: asyncio subprocess codex exec "prompt", same pattern with error handling
+├── prompts/
+│   └── system_prompts.py          # FULL: 4 role prompts (coder/designer/reviewer/architect), Chinese responses + structured output
+├── app/api/endpoints/
+│   └── messages.py                # FULL: POST /chat, stream/non-stream dispatch, SSE format per contract, 400/502 errors, detailed OpenAPI docs
+├── requirements.txt               # fastapi, uvicorn, httpx, pydantic, pydantic-settings, sse-starlette, langchain, langgraph, etc.
+└── .env                           # ANTHROPIC_API_KEY, OPENAI_API_KEY (gitignored; CLI tools read from system env, Agent Service never touches keys)
 
-docs/                              # 6 design docs
+> **Doc vs code gaps**: docs planned `http_adapter.py` (custom Agent HTTP API, D13) and `orchestrator.py` (multi-agent scheduling, P2) — neither implemented yet. The agents/conversations/artifacts CRUD endpoints originally planned under `app/api/endpoints/` were removed when Python became a stateless gateway; only `messages.py` remains.
+
+docs/                              # 5 design docs (v1.0)
 ├── 项目概述与技术栈总览.md
 ├── 架构拓扑图与项目目录结构.md
 ├── 数据模型设计.md
-├── API 契约定义与通信协议规范.md    # Full REST + WebSocket + SSE contract (updated 2026-05-26)
-├── api_spec.md
-└── 基础设施配置.md
-
-agent_collaboration/               # Internal team docs (not pushed to remote)
-├── 团队任务分配.md                              # 4-member task assignment (v1.2), sprint goals, Agent Service migration tasks
-├── 开发过程记录-JPA数据层搭建.md
-├── 开发过程记录-CORS配置与接口文档更新.md
-├── 开发过程记录-团队任务分配与群聊方案设计.md
-├── 开发过程记录-C1-Axios实例配置.md
-├── 开发过程记录-C6-MessageInput组件提取.md
-├── 开发过程记录-C8-ChatList会话列表改造.md
-├── 开发过程记录-C9-Vue-Router路由配置.md
-├── 开发过程记录-Git-Commit模板配置.md
-├── 开发过程记录-数据库持久化机制分析.md
-├── 开发过程记录-Agent-Service分层架构说明文档升级.md
+├── API 契约定义与通信协议规范.md
+└── 基础设施配置.md                 # Updated: H2 config + quick-start checklist + MVP annotations
 ```
 
 ## Current State Summary
 
-### Working (Frontend — UI prototype ~80%)
-- Full IM-style 3-column layout (SideBar/ChatList/ChatWindow) renders
-- Chat messages: text bubbles, code blocks (Monaco Editor), artifact preview cards
-- Artifact system: click card → full-screen overlay → preview (iframe srcdoc) / code toggle
-- Office view: SVG scene with 8 seats, animated stick figures, GSAP kick-out/walk-in
-- Vue Router 4 configured: `/chat/:conversationId` dynamic route, `/office` lazy-loaded, root redirect
-- View switching via URL routing (not Pinia state): SideBar uses useRoute/useRouter, ChatList auto-routes by conversation.type
-- MessageInput extracted as shared component (reusable in ChatView and OfficeView)
-- Axios HTTP client configured (`src/api/index.ts`): baseURL localhost:8080, interceptors ready
-- **All data is mock/hardcoded** — ChatList shows conversations (not agents), ChatWindow uses simulated AI responses, no real API calls yet
+### Frontend — ~85% (UI + routing done, mock data, no real API integration)
+- Vue Router 4: `/chat/:conversationId` (ChatView), `/office` (lazy), root redirect
+- 3-col IM layout: SideBar (active via route.name) + ChatList (route push, create conv) + ChatWindow (auto-scroll, MessageInput decoupled)
+- Message types: text / code (Monaco Editor) / artifact_preview (click→full-screen overlay)
+- Office scene: SVG 8-seat 3D desk layout, GSAP kick-out/walk-in animations, multi-office management (create/disband/switch), invite panel
+- Axios configured (interceptors ready), STOMP WebSocket client **not connected**
+- **All mock data** — ChatWindow simulates AI via setTimeout, ChatList shows conversations not agents
 
-### Backend (Java — ~35%)
-- Spring Boot app compiles and starts
-- JPA entities: User, Conversation, Message, Agent (with ManyToMany conv_agents join table)
-- JPA repositories: 4 data access interfaces
-- seed data: `data.sql` preloads Claude Code + Codex agents
-- CorsConfig: CorsFilter Bean covering all paths (Servlet Filter layer)
-- WebSocket STOMP configured but handlers are empty stubs
-- AgentGatewayService has WebClient but sendToAgent() is unimplemented
-- **Missing**: SecurityConfig, REST controllers, services, DTOs
-- Database: H2 file-based (AUTO_SERVER=TRUE, shared with Python Agent Service), docs specify PostgreSQL for production
+### Backend Java — ~45% (data layer complete, controllers/services pending)
+- Spring Boot compiles and starts on port 8080
+- **Config layer done**: WebSocketConfig (STOMP + SockJS), CorsConfig (Servlet Filter), ArtifactConfig (static resource mapping), SecurityConfig (comment placeholder, P1)
+- **Data layer done**: 4 JPA entities (all with @PrePersist UUID generation + timestamps), Message entity has 2 DB indexes
+- 4 Repository interfaces (custom queries: paging, sorting, conditional filtering)
+- `data.sql` seeds Claude Code + Codex agents (H2 `MERGE INTO` syntax)
+- `AgentGatewayService` **fully implemented**: WebClient SSE parser → AgentToken callback (token/finish/error), aligned to `/api/agent/chat` contract
+- `WebSocketController` has @MessageMapping but empty handler body
+- H2 file-based DB, Java-exclusive (Python is stateless gateway, no DB access)
+- **Pending**: ConversationService, MessageService (context building), WebSocketSessionManager, WebSocket message push logic
 
-### Agent Service (Python — ~65%)
-- FastAPI app starts, all 4 endpoint groups return real data from shared H2 database
-- **Full layered architecture**: API endpoints → Pydantic models → Adapter cluster → Repository interface → Repository impl (JDBC) → Connection manager (JVM bridge)
-- Repository Pattern: data access interfaces are DB-agnostic, current implementation uses JPype + jaydebeapi JDBC bridge to H2 `AUTO_SERVER=TRUE` (shared with Java backend)
-- 3 LLM adapters: Claude (Anthropic Messages API), Codex (OpenAI Chat Completions), DeepSeek (OpenAI-compatible)
-- Pydantic models layer is DB-agnostic — zero changes needed when migrating to PostgreSQL
-- `POST /api/v1/messages/chat/stream` returns mock SSE stream (Orchestrator scheduling not yet implemented)
-- Phase 1 migration plan documented: replace ~200 lines of JDBC bridge code with asyncpg + SQLAlchemy for PostgreSQL, zero changes to upper layers
-- **Missing**: Orchestrator multi-agent scheduler, real prompt engineering, real LLM streaming integration
+### Agent Service — ~75% (adapters complete, stateless gateway)
+- FastAPI starts, single router `/api/agent` with `POST /chat`
+- **ClaudeAdapter**: `asyncio.subprocess` → `claude -p "prompt"` → stdout line-by-line SSE
+- **CodexAdapter**: same pattern with `codex exec "prompt"`
+- Stream: SSE `data: {"token":"...", "finish":false, "agentId":"...", "agentName":"..."}`, non-stream: JSON
+- `/health` endpoint: returns `status`, `version`, `uptime`
+- Global error handlers: 400/404/500 with unified `{error, message, timestamp, path}` format
+- **No database access** — receives pre-assembled `context` (chat history text) from Java, returns token stream
+- **Pending**: `http_adapter.py` (D13, custom Agent HTTP API), `orchestrator.py` (P2, multi-agent scheduling)
 
-### Key Technical Decisions
-- **MVP simplification**: H2 instead of PostgreSQL, in-memory session management (no Redis), local filesystem storage (no MinIO)
-- **Vue Router 4 configured**: `/chat/:conversationId` dynamic route + `/office` lazy-loaded route, view switching driven by URL (previously Pinia state-based)
-- **No authentication** in MVP — docs reserve it for P1
-- **CORS strategy**: CorsFilter Bean (Servlet Filter layer) for dev, Nginx reverse proxy for production
-- **Chat vs Office**: Two UI skins (ChatView/OfficeView) sharing one message engine (Pinia store + WebSocket client + components)
-- **Agent dispatch**: Orchestrator pattern — Python Agent Service handles scheduling transparently, frontend only sends `{conversationId, content}`
-- **Monaco Editor workers** configured as Vite web workers in main.ts
-- **GSAP** used for office animations (timeline-based kick/walk sequences)
-- **dev branch** is the active development branch; main has only initial commits
+### Doc-vs-Code Gaps
+- **Python is stateless gateway** — docs originally planned Python sharing H2 via JPype/jaydebeapi. Now pure CLI subprocess forwarding, zero DB access. Planned agents/conversations/artifacts CRUD endpoints were removed.
+- **Local CLI instead of cloud API** — docs `config.py` planned `CLAUDE_API_KEY`/`CODEX_API_KEY` for direct Anthropic/OpenAI HTTP calls. Now uses asyncio subprocess with local CLI; API keys read by CLI tools from system env, Agent Service never touches them.
+- **Docs planned but unimplemented**: `http_adapter.py` (D13), `orchestrator.py` (P2)
+- **H2 instead of PostgreSQL** — docs specify PostgreSQL datasource, actual MVP uses H2 file mode. P1 migration: change 5 lines in YAML + 2 SQL statements.
+- **Frontend is TypeScript, not JavaScript** — docs say `JavaScript ES2022+`, actual code is all `.ts` / `<script setup lang="ts">`
+- **WebSocket endpoint is `/ws-chat`** — docs API contract says `/ws`, actual code uses `/ws-chat`
+- **SendMessageRequest DTO** — actual code has `agentId` field, but API contract says frontend should NOT send `agentType`/`agentId` (Orchestrator handles scheduling). Needs alignment during implementation.
+- **No Redis/MinIO/auth** in MVP — reserved for P1
+- **Vue Router 4** drives view switching (URL shareable)
+- **Monaco Editor** (Vite web worker loading) + **GSAP** animations
+- **dev branch** is the active development branch
