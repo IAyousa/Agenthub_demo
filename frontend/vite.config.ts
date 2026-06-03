@@ -14,4 +14,9 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url))
     }
   },
+  define: {
+    // sockjs-client 引用了 Node.js 的 global 变量，浏览器中不存在。
+    // globalThis 是 ES2020 标准，等价于浏览器中的 window。
+    global: 'globalThis',
+  },
 })
