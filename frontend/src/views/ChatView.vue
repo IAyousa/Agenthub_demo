@@ -21,6 +21,8 @@ watch(
 
 onMounted(() => {
   chatStore.mobileView = 'list'
+  chatStore.loadConversationList()  // REST API: GET /conversations
+  chatStore.loadAgents()            // REST API: GET /agents
   chatStore.initWebSocket()
 })
 </script>

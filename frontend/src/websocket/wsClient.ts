@@ -216,7 +216,12 @@ class WsClient {
    *   - 如果已订阅同一 topic，先取消旧订阅（避免重复回调）。
    *   - 订阅返回值存入 Map，用于 disconnect() 时批量清理。
    */
-  subscribe(conversationId: string): void {
+  subscribe(conversationId: string): boolean {
+    if (!this.client.connected) {
+      console.warn('[wsClient] Cannot subscribe: STOMP not connected')
+      return false
+    }
+
     const topic = `/topic/conversation.${conversationId}`
 
     // 避免同一 topic 重复订阅
@@ -254,6 +259,7 @@ class WsClient {
     })
 
     this.subscriptions.set(topic, subscription)
+    return true
   }
 
   /**

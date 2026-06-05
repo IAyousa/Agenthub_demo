@@ -292,10 +292,12 @@ export const useChatStore = defineStore('chat', () => {
 
   const handleConnectionChange = (connected: boolean) => {
     wsConnected.value = connected
-    // 重连后重新订阅当前会话
     if (connected && currentConversationId.value) {
       const ws = getWsClient(wsCallbacks)
-      ws.subscribe(currentConversationId.value)
+      const ok = ws.subscribe(currentConversationId.value)
+      if (!ok) {
+        console.warn('[chat] subscribe failed on reconnect for', currentConversationId.value)
+      }
     }
   }
 
@@ -358,7 +360,8 @@ export const useChatStore = defineStore('chat', () => {
     isMessagesLoading.value = true
     try {
       const res = await getConversationMessages(conversationId, 0, 50)
-      const messages = res.data.messages.map(mapApiMessage)
+      const messages = res.data.messages.map(mapApiMessage).reverse()
+      // API returns newest-first (DESC); reverse to display oldest-first in chat UI
       if (!conversations.value[conversationId]) {
         conversations.value[conversationId] = {
           id: conversationId,
@@ -396,10 +399,8 @@ export const useChatStore = defineStore('chat', () => {
 
     // 取消旧订阅
     if (wsConnected.value && currentConversationId.value) {
-      try {
-        const ws = getWsClient(wsCallbacks)
-        ws.unsubscribe(currentConversationId.value)
-      } catch { /* ignore */ }
+      const ws = getWsClient(wsCallbacks)
+      ws.unsubscribe(currentConversationId.value)
     }
 
     const prevId = currentConversationId.value
@@ -413,10 +414,11 @@ export const useChatStore = defineStore('chat', () => {
     if (id) {
       loadMessages(id)
       if (wsConnected.value) {
-        try {
-          const ws = getWsClient(wsCallbacks)
-          ws.subscribe(id)
-        } catch { /* ignore */ }
+        const ws = getWsClient(wsCallbacks)
+        const ok = ws.subscribe(id)
+        if (!ok) {
+          console.warn('[chat] subscribe failed for', id, '- will retry on reconnect')
+        }
       }
     }
   }
@@ -481,10 +483,10 @@ export const useChatStore = defineStore('chat', () => {
         agentNames: [],
       })
       conversations.value[id] = { id, title: res.data.title, messages: [] }
-      currentConversationId.value = id
       mobileView.value = 'chat'
       error.value = null
       return id
+      // currentConversationId is set by selectConversation() via router watch
     } catch {
       // API 不可用 → 本地 fallback
       const id = `conv_${Date.now()}`
