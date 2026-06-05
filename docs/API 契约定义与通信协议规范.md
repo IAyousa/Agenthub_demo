@@ -229,8 +229,13 @@ GET /conversations/{id}/messages?page=0&size=50
 ```
 #### 2.2.8 置顶/取消置顶消息
 ```http
-PUT /messages/{id}/pin
+PUT /conversations/{conversationId}/messages/{messageId}/pin
 ```
+##### 路径参数：
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| conversationId | string | 是 | 会话 ID（URL 路径体现层级关系，用于归属校验） |
+| messageId | string | 是 | 消息 ID |
 ##### 请求体：
 ```json
 {
@@ -248,6 +253,8 @@ PUT /messages/{id}/pin
   "pinned": true
 }
 ```
+##### 安全说明：
+后端需校验 `messageId` 对应的消息是否归属于 `conversationId` 对应的会话，防止跨会话越权操作。
 ### 2.3 Agent 管理
 #### 2.3.1 获取可用 Agent 列表
 ```http
@@ -370,6 +377,48 @@ GET /conversations/{id}/artifacts
     }
   ]
 }
+```
+#### 2.4.4 内部产物创建（Python Agent → Java 后端）
+```http
+POST /internal/artifacts
+```
+> 此接口用于 Python Agent 服务在 Agent 生成代码后，直接向 Java 后端上传产物文件，无需绕路前端。前端用户的 `POST /artifacts/upload` 接口保留(P2 用户手动上传场景)。
+##### 请求体（JSON，非 multipart）：
+```json
+{
+  "conversationId": "conv_abc123",
+  "messageId": "msg_002",
+  "filename": "App.jsx",
+  "content": "import React from 'react';\n\nconst App = () => {\n  return <div>Hello</div>;\n};",
+  "contentType": "text/javascript"
+}
+```
+##### 字段说明：
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| conversationId | string | 是 | 所属会话 ID |
+| messageId | string | 是 | 关联消息 ID |
+| filename | string | 是 | 文件名 |
+| content | string | 是 | 文件内容（纯文本，非 base64） |
+| contentType | string | 否 | MIME 类型 |
+##### 成功响应（201）：
+```json
+{
+  "id": "art_003",
+  "filename": "App.jsx",
+  "fileSize": 128,
+  "conversationId": "conv_abc123",
+  "messageId": "msg_002",
+  "createdAt": "2026-05-25T12:00:00"
+}
+```
+##### 调用链路：
+```text
+Agent 生成代码 → Python Agent 服务接收 stdout
+  → HTTP POST /internal/artifacts → Java 后端
+  → Java 后端存储文件到 ./artifacts/ + 数据库记录
+  → WebSocket 推送 preview_card 给前端（含预览 URL）
+  → 前端 iframe 加载 URL 预览
 ```
 ---
  ## 3. WebSocket 协议（前端 ↔ Spring Boot）
@@ -590,7 +639,28 @@ GET /health
 | 500 | INTERNAL_ERROR | 服务器内部错误 |
 | 502 | AGENT_ERROR | Agent 服务调用失败 |
 | 504 | AGENT_TIMEOUT | Agent 服务超时 |
-### 5.3 WebSocket 错误处理
+
+### 5.3 WebSocket 错误码枚举
+流式推送错误时使用以下标准化错误码，前端据此决定 UI 行为：
+
+| 错误码 | 说明 | 前端行为 |
+|--------|------|----------|
+| `AGENT_TIMEOUT` | Agent 调用超时 | 显示"重新发送"按钮 |
+| `AGENT_UNAVAILABLE` | Agent 服务不可达（连接拒绝） | 显示"稍后重试"提示 |
+| `CLI_NOT_FOUND` | 本地 CLI 工具未安装 | 显示配置引导 |
+| `CONTEXT_TOO_LONG` | 上下文超出 token 限制 | 提示固定关键消息或开新会话 |
+| `UNKNOWN_ERROR` | 未分类错误 | 显示通用错误提示 |
+
+### 5.4 各层级异常捕获职责
+| 层级 | 捕获范围 | 转换后的 errorCode |
+|------|----------|-------------------|
+| Python Agent 服务 | 本地 CLI 调用失败（subprocess.CalledProcessError） | `CLI_NOT_FOUND` |
+| Python Agent 服务 | 自定义 Agent HTTP 调用超时（httpx.TimeoutException） | `AGENT_TIMEOUT` |
+| Java AgentGatewayService | Python Agent 服务连接失败（ConnectException） | `AGENT_UNAVAILABLE` |
+| Java AgentGatewayService | WebClient 超时 | `AGENT_TIMEOUT` |
+| Java WebSocketController | 其他未捕获异常 | `UNKNOWN_ERROR` |
+
+### 5.5 WebSocket 错误推送格式
 当处理消息出现异常时，后端通过同一订阅通道推送错误消息：
 ```json
 {
@@ -598,10 +668,12 @@ GET /health
   "isComplete": true,
   "agentName": "System",
   "messageType": "error",
-  "messageId": "msg_error_001"
+  "errorCode": "AGENT_TIMEOUT",
+  "messageId": "msg_error_001",
+  "retryable": true
 }
 ```
 前端处理逻辑：
-- messageType 为 error 时，气泡显示为红色/警告样式。
+- messageType 为 error 时，气泡显示为红色/警告样式，根据 errorCode 决定是否显示重试按钮。
 - 保留用户输入内容，允许重新发送。
 - 网络断开时，STOMP 客户端自动重连（内置机制）。
