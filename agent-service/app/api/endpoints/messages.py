@@ -142,6 +142,12 @@ async def chat(data: AgentChatRequest, request: Request):
 
     agent_type = data.agentType
     system_prompt = data.systemPrompt
+
+    # Fallback: if Java didn't provide a system prompt, look up from local templates
+    if not system_prompt and agent_type:
+        from prompts.system_prompts import SYSTEM_PROMPTS
+        system_prompt = SYSTEM_PROMPTS.get(agent_type, SYSTEM_PROMPTS.get("coder", ""))
+
     agent_name = AGENT_DISPLAY_NAMES.get(agent_type, agent_type)
     agent_id = f"agent_{agent_type}"
 

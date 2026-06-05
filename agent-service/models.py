@@ -39,6 +39,12 @@ class AgentChatRequest(BaseModel):
         description="本地 CLI Agent 执行任务的工作目录。仅在 claude_code / codex 类型下有效，不传则使用默认工作目录",
         examples=["/path/to/project"],
     )
+    availableAgents: list = Field(
+        default_factory=list,
+        description="P2预留：Java传入的可用Agent列表，用于Orchestrator做调度决策。"
+                    "MVP阶段为空列表，Python使用config.py的AGENT_REGISTRY作为fallback。"
+                    "P1阶段由Java从DB查询后通过此字段传入，P1末期迁至Redis共享缓存。",
+    )
 
 
 class AgentChatResponse(BaseModel):

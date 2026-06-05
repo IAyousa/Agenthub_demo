@@ -46,8 +46,11 @@ public class WebSocketController {
                 conversationId, "system", "user", content.trim(), "text", null);
         log.info("User message saved: id={}", userMessage.getId());
 
-        // Step 2: Determine agent type from conversation
-        String agentType = resolveAgentType(conversationId);
+        // Step 2: Resolve agent from DB (MVP: default to claude_code)
+        Agent agent = agentRepository.findById("agent_claude_001").orElse(null);
+        String agentType = agent != null ? agent.getType() : "claude_code";
+        String systemPrompt = (agent != null && agent.getSystemPrompt() != null)
+                ? agent.getSystemPrompt() : "";
         if (agentType == null) {
             messagingTemplate.convertAndSend(topic, errorChunk(
                     "Agent type could not be determined for this conversation."));
@@ -62,7 +65,7 @@ public class WebSocketController {
         boolean[] receivedTokens = {false};
         StringBuilder fullResponse = new StringBuilder();
 
-        agentGatewayService.sendToAgent(context, agentType, "", token -> {
+        agentGatewayService.sendToAgent(context, agentType, systemPrompt, token -> {
             try {
                 if (token.getToken() != null && !token.getToken().isEmpty()) {
                     receivedTokens[0] = true;
@@ -74,7 +77,8 @@ public class WebSocketController {
                     chunk.put("isComplete", false);
                     chunk.put("agentId", "agent_" + agentType);
                     chunk.put("agentName", token.getAgentName() != null
-                            ? token.getAgentName() : getAgentName(agentType));
+                            ? token.getAgentName()
+                            : (agent != null ? agent.getName() : getAgentName(agentType)));
                     chunk.put("messageType", "text");
                     messagingTemplate.convertAndSend(topic, chunk);
                 }
@@ -137,11 +141,9 @@ public class WebSocketController {
         log.info("Auto-created conversation: id={}", conversationId);
     }
 
-    private String resolveAgentType(String conversationId) {
-        // MVP: default to claude_code for all conversations. Full routing
-        // (direct → session agent, group → orchestrator) is P2 scope.
-        return "claude_code";
-    }
+    // Agent routing is resolved from DB in Step 2 of handleUserMessage.
+    // MVP default: agent_claude_001 for all conversations.
+    // Full routing (direct → session agent, group → orchestrator) is P2 scope.
 
     private String buildContextString(List<Message> messages) {
         StringBuilder sb = new StringBuilder();

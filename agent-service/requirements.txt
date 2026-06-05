@@ -2,8 +2,10 @@
 fastapi==0.109.0
 uvicorn[standard]==0.27.0
 
-# HTTP Client (Async, for custom Agent HTTP API adapter)
-httpx==0.26.0
+# HTTP Client (Async)
+# CLI 适配器（ClaudeAdapter、CodexAdapter）通过 subprocess 调用本地 CLI，
+# 不需要 httpx。HttpApiAdapter 等 HTTP 适配器依赖 httpx 发起流式请求。
+httpx>=0.26.0
 
 # Data Validation
 pydantic==2.5.0

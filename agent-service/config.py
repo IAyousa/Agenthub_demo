@@ -52,6 +52,76 @@ class Settings(BaseSettings):
     AGENT_TIMEOUT: int = 300                          # 单次 Agent 任务超时（秒），CLI 可能执行文件操作等耗时任务
     AGENT_WORKING_DIRECTORY: str = "."                # Agent CLI 执行任务的工作目录，默认当前目录
 
+    # ========== Agent 注册表（Fallback 缓存） ==========
+    # 这是 Python 端的 Agent 元数据缓存，用于以下场景：
+    #   1. Java 未传 availableAgents 时的降级 fallback
+    #   2. 本地开发时无需启动 Java 后端即可测试 Agent 服务
+    #   3. 系统内置 Agent 的默认角色定义（promptKey → SYSTEM_PROMPTS）
+    #
+    # Java DB 的 agents 表是 Agent 元数据的唯一权威数据源。
+    # 当 Java 通过 availableAgents[] 传入 Agent 列表时，以 Java 传入的为准。
+    AGENT_REGISTRY: list = [
+        {
+            "id": "claude_code",
+            "name": "Claude Code",
+            "type": "claude_code",
+            "description": "全栈工程师，擅长后端逻辑、代码审查、架构设计与重构优化",
+            "promptKey": "claude_code",
+            "capabilities": [
+                "代码生成",
+                "代码审查与 Bug 修复",
+                "架构设计与技术选型",
+                "重构与性能优化",
+                "文件系统读写与 Shell 命令执行",
+            ],
+            "tags": ["全栈", "代码审查"],
+            "status": "active",
+        },
+        {
+            "id": "codex",
+            "name": "Codex",
+            "type": "codex",
+            "description": "前端开发专家，擅长组件开发、UI 实现与前端交互逻辑",
+            "promptKey": "codex",
+            "capabilities": [
+                "前端组件开发",
+                "样式实现与响应式布局",
+                "前端交互逻辑与状态管理",
+                "文件系统读写与 Shell 命令执行",
+            ],
+            "tags": ["前端", "UI"],
+            "status": "active",
+        },
+        {
+            "id": "orchestrator",
+            "name": "Orchestrator",
+            "type": "custom",
+            "description": "任务调度器，分析用户意图，将任务分派给最合适的 Agent",
+            "promptKey": "orchestrator",
+            "capabilities": [
+                "用户意图分析与任务分类",
+                "多 Agent 协作调度",
+                "任务拆分与串行执行规划",
+                "模糊需求澄清",
+            ],
+            "tags": ["调度", "多 Agent"],
+            "status": "active",
+        },
+        {
+            "id": "custom",
+            "name": "Custom Agent",
+            "type": "custom",
+            "description": "用户自定义 Agent，默认使用 Claude Code 作为执行引擎",
+            "promptKey": "custom",
+            "capabilities": [
+                "通用任务处理",
+                "文件系统读写与 Shell 命令执行",
+            ],
+            "tags": ["通用", "自定义"],
+            "status": "active",
+        },
+    ]
+
     # ========== 安全配置 ==========
     # CORS 白名单：仅允许以下来源跨域访问 FastAPI
     ALLOWED_ORIGINS: List[str] = [
