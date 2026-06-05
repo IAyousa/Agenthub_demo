@@ -549,10 +549,11 @@ POST /api/agent/chat
 | 字段 | 类型 | 必填 | 默认值 | 说明 |
 |------|------|------|--------|------|
 | agentType | string | 否 | `"claude_code"` | Agent 类型：`claude_code`（CLI）/ `codex`（CLI）/ `custom`（HTTP API），空值表示 Orchestrator 多 Agent 调度模式 |
-| systemPrompt | string | 否 | `""` | 系统提示词，覆盖 Agent 数据库中的默认 system_prompt |
+| systemPrompt | string | 否 | `""` | 系统提示词，覆盖 Agent 数据库中的默认 system_prompt。为空时 Python 端自动从 SYSTEM_PROMPTS 模板按 agentType 查询 fallback |
 | messages | array | 否 | `[]` | 结构化对话历史数组，每个元素包含 role/content/可选 agentName，替代原来的裸字符串 context |
 | stream | boolean | 否 | `false` | `true`=SSE 流式返回，`false`=收集完整后返回 JSON |
 | workingDirectory | string | 否 | `null` | 本地 CLI Agent 执行任务的工作目录，仅 `claude_code`/`codex` 类型下有效 |
+| availableAgents | array | 否 | `[]` | **P2 预留**：Java 传入的可用 Agent 列表，Orchestrator 据此做调度决策。MVP 阶段为空，Python 使用 config.py 的 AGENT_REGISTRY 作为 fallback
 
 ##### 单 Agent 模式 vs 多 Agent 模式路由（新增设计文档对齐）
 - `agentType` 有具体值 → **单 Agent 模式**，直接调用对应适配器，每个 chunk 携带统一的 agentId/agentName，不推送 agent_switch

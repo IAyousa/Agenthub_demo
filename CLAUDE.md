@@ -97,21 +97,23 @@ backend-java/                      # Spring Boot — ~55% complete (data + servi
 
 agent-service/                     # FastAPI — ~75% complete, stateless gateway, no DB access
 ├── main.py                        # FULL: FastAPI app, CORS, /api/agent router, global error handlers (400/404/500), /health with uptime
-├── models.py                      # FULL: AgentChatRequest, AgentChatResponse, HealthResponse, ErrorResponse — camelCase, aligned to API contract §4
-├── config.py                      # FULL: pydantic-settings BaseSettings, Claude/Codex CLI commands, timeout 300s, AGENT_WORKING_DIRECTORY
+├── models.py                      # FULL: AgentChatRequest (incl. availableAgents P2 field), AgentChatResponse, HealthResponse, ErrorResponse
+├── config.py                      # FULL: pydantic-settings + AGENT_REGISTRY fallback cache (4 agents), Claude/Codex CLI commands, timeout 300s
 ├── adapters/
 │   ├── base_adapter.py            # FULL: strip_ansi(), build_prompt(), chat_stream() abstract, chunk contract (msg_start/msg_chunk/msg_end/error)
 │   ├── adapter_factory.py         # FULL: ADAPTER_MAP {claude_code, codex, custom} → ValueError on unknown type
 │   ├── claude_adapter.py          # FULL: asyncio subprocess claude -p "prompt", stdout streaming, stderr drain, timeout/kill, exit code check
 │   └── codex_adapter.py           # FULL: asyncio subprocess codex exec "prompt", same pattern with error handling
 ├── prompts/
-│   └── system_prompts.py          # FULL: 4 role prompts (coder/designer/reviewer/architect), Chinese responses + structured output
+│   └── system_prompts.py          # FULL: 8 role prompts (claude_code/codex/orchestrator/custom + coder/designer/reviewer/architect fallback)
 ├── app/api/endpoints/
-│   └── messages.py                # FULL: POST /chat, stream/non-stream dispatch, SSE format per contract, 400/502 errors, detailed OpenAPI docs
+│   ├── messages.py                # FULL: POST /chat, stream/non-stream dispatch, auto-lookup systemPrompt from templates, SSE format per contract
+│   └── agents.py                  # NEW: get_agents()/get_agent()/agent_exists() utility for AGENT_REGISTRY lookups
 ├── requirements.txt               # fastapi, uvicorn, httpx, pydantic, pydantic-settings, sse-starlette, langchain, langgraph, etc.
 └── .env                           # ANTHROPIC_API_KEY, OPENAI_API_KEY (gitignored; CLI tools read from system env, Agent Service never touches keys)
 
-> **Doc vs code gaps**: docs planned `http_adapter.py` (custom Agent HTTP API, D13) and `orchestrator.py` (multi-agent scheduling, P2) — neither implemented yet. CRUD endpoints in Python were removed when it became a stateless gateway; only `messages.py` remains.
+> **Agent metadata architecture**: Java DB `agents` table is the single source of truth. Python `AGENT_REGISTRY` in config.py is a fallback cache. Java WebSocketController now sends `systemPrompt` from DB (previously hardcoded ""). P1: Java carries `availableAgents[]` in request. P1-late: Redis shared cache.
+> **Doc vs code gaps**: `http_adapter.py` (custom Agent HTTP API, D13) and `orchestrator.py` (multi-agent scheduling, P2) — not implemented yet.
 
 docs/                              # 5 design docs (v1.0)
 ├── 项目概述与技术栈总览.md
@@ -148,10 +150,12 @@ docs/                              # 5 design docs (v1.0)
 - H2 file-based DB, Java-exclusive (Python is stateless gateway, no DB access)
 - **Pending**: Frontend REST API wiring for conversation/agent list loading, end-to-end user auth
 
-### Agent Service — ~75% (adapters complete, stateless gateway)
+### Agent Service — ~80% (adapters + prompts + agent registry all done)
 - FastAPI starts, single router `/api/agent` with `POST /chat`
 - **ClaudeAdapter**: `asyncio.subprocess` → `claude -p "prompt"` → stdout line-by-line SSE
 - **CodexAdapter**: same pattern with `codex exec "prompt"`
+- **System prompts**: 8 role templates (claude_code/codex/orchestrator/custom + 4 legacy fallback). Auto-lookup by agentType when Java sends empty systemPrompt.
+- **AGENT_REGISTRY**: 4-agent fallback cache in config.py, with `agents.py` utility module for lookup. Java DB is source of truth.
 - Stream: SSE `data: {"token":"...", "finish":false, "agentId":"...", "agentName":"..."}`, non-stream: JSON
 - `/health` endpoint: returns `status`, `version`, `uptime`
 - Global error handlers: 400/404/500 with unified `{error, message, timestamp, path}` format

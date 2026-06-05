@@ -559,3 +559,64 @@ function handleIncomingMessage(chunk) {
 | chunk（含 agentId） | 每个 token 到达时 | 即使 agent_switch 丢失，也能通过 chunk 中的 agentId 正确渲染 |
 
 这种冗余设计确保在任何网络条件下，前端的 Agent 身份显示始终正确。
+
+---
+
+## 6. Agent 元数据存储与传递（三层演进设计）
+
+### 6.1 核心原则
+
+**Java DB 的 `agents` 表是 Agent 元数据的唯一权威数据源。** Python 端不维护独立的 Agent 数据库，通过以下三层方案渐进获取 Agent 元数据：
+
+### 6.2 三层演进方案
+
+| 阶段 | Python 获取 Agent 元数据的方式 | 基础设施 |
+|------|-------------------------------|---------|
+| **MVP（当前）** | Python config.py `AGENT_REGISTRY`（静态 fallback）+ Java 请求中发送 `systemPrompt`（从 DB 读取） | 0 额外组件 |
+| **P1** | Java `AgentGatewayService` 在请求体中携带 `availableAgents[]`（从 DB 查询），Python 缓存到内存 | 请求体积 +~1KB |
+| **P1 末期** | Java 写入 Agent 列表到 Redis → Python 从 Redis 读取 | 复用已有 Redis |
+
+### 6.3 MVP 阶段数据流
+
+```
+Java DB agents 表（权威源）
+    │
+    ├──→ Java WebSocketController
+    │      resolveAgent("agent_claude_001") → agentType + systemPrompt
+    │      POST /api/agent/chat { agentType, systemPrompt, availableAgents: [] }
+    │                                    ↓
+    │                          Python messages.py
+    │                            ├── systemPrompt 不为空 → 直接使用
+    │                            └── systemPrompt 为空 → 查 SYSTEM_PROMPTS[agentType]
+    │                                    ↓
+    │                          AdapterFactory.get_adapter(agentType)
+    │
+    └──→ Python config.py AGENT_REGISTRY（fallback，Java 未传时使用）
+```
+
+### 6.4 P1 演进：请求携带
+
+```java
+// Java AgentGatewayService (P1)
+List<Map<String, Object>> availableAgents = agentRepository.findAll().stream()
+    .map(a -> Map.of("id", a.getType(), "name", a.getName(),
+                     "capabilities", a.getCapabilities(), ...))
+    .toList();
+
+body.put("availableAgents", availableAgents);  // 随请求发送
+```
+
+### 6.5 P1 末期：Redis 共享缓存
+
+```text
+Java DB agents 表
+    │
+    ├──→ Java AgentController (POST/PATCH /agents)
+    │      变更时写 Redis: HSET agents {type} {json}
+    │
+    └──→ Python Orchestrator
+            启动时 HGETALL agents → 内存缓存
+            定时刷新（TTL 60s）
+```
+
+复用项目已有的 Redis 实例（原用于 WebSocket 会话管理迁移 `ConcurrentHashMap → Redis`），无需额外部署。Agent 元数据量级极小（<10KB），Redis Hash 结构天然适合。
