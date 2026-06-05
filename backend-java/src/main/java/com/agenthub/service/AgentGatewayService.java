@@ -45,40 +45,39 @@ public class AgentGatewayService {
                 .bodyValue(body)
                 .retrieve()
                 .bodyToFlux(String.class)
-                .doOnNext(line -> {
-                    if (line == null || line.isBlank()) {
-                        return;
-                    }
-                    String trimmed = line.trim();
-                    if (!trimmed.startsWith("data: ")) {
-                        return;
-                    }
-                    String jsonStr = trimmed.substring(6).trim();
-                    if (jsonStr.isEmpty()) {
-                        return;
-                    }
-                    try {
-                        JsonNode node = objectMapper.readTree(jsonStr);
-                        String token = node.path("token").asText(null);
-                        boolean finish = node.path("finish").asBoolean(false);
-                        String agentId = node.path("agentId").asText(null);
-                        String agentName = node.path("agentName").asText(null);
-                        String messageId = node.path("messageId").asText(null);
-                        String error = node.path("error").asText(null);
+                .doOnNext(chunk -> {
+                    if (chunk == null || chunk.isBlank()) return;
+                    for (String rawLine : chunk.split("\n")) {
+                        String line = rawLine.trim();
+                        if (line.isEmpty() || line.equals("[DONE]")) continue;
+                        // Support both SSE "data: {...}" format and raw JSON
+                        String jsonStr = line.startsWith("data: ")
+                                ? line.substring(6).trim()
+                                : line;
+                        if (jsonStr.isEmpty() || jsonStr.startsWith(":")) continue;
+                        try {
+                            JsonNode node = objectMapper.readTree(jsonStr);
+                            String token = node.path("token").asText(null);
+                            boolean finish = node.path("finish").asBoolean(false);
+                            String agentId = node.path("agentId").asText(null);
+                            String agentName = node.path("agentName").asText(null);
+                            String messageId = node.path("messageId").asText(null);
+                            String error = node.path("error").asText(null);
 
-                        if (error != null && !error.isEmpty()) {
-                            log.error("Agent error: {}", error);
-                            onToken.accept(AgentToken.error(error));
-                            return;
-                        }
+                            if (error != null && !error.isEmpty()) {
+                                log.error("Agent error: {}", error);
+                                onToken.accept(AgentToken.error(error));
+                                continue;
+                            }
 
-                        if (finish) {
-                            onToken.accept(AgentToken.finish(messageId));
-                        } else if (token != null && !token.isEmpty()) {
-                            onToken.accept(new AgentToken(token, agentId, agentName));
+                            if (finish) {
+                                onToken.accept(AgentToken.finish(messageId));
+                            } else if (token != null && !token.isEmpty()) {
+                                onToken.accept(new AgentToken(token, agentId, agentName));
+                            }
+                        } catch (Exception e) {
+                            log.warn("Skip invalid SSE data line: {}", line, e);
                         }
-                    } catch (Exception e) {
-                        log.warn("Skip invalid SSE data line: {}", trimmed, e);
                     }
                 })
                 .doOnComplete(() -> log.info("Agent SSE streaming completed"))

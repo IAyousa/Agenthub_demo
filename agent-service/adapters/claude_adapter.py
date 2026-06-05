@@ -124,9 +124,11 @@ class ClaudeAdapter(BaseAdapter):
             return
 
         async def read_stderr():
-            """后台读取 stderr，避免管道阻塞。"""
+            """后台读取 stderr，避免管道阻塞，并记录日志。"""
             if process.stderr:
-                await process.stderr.read()
+                data = await process.stderr.read()
+                if data:
+                    print(f"[ClaudeAdapter] stderr: {data.decode('utf-8', errors='replace')[-500:]}", flush=True)
 
         stderr_task = asyncio.ensure_future(read_stderr())
 
