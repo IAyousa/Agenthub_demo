@@ -125,17 +125,19 @@ docs/                              # 5 design docs (v1.0)
 
 ## Current State Summary
 
-### Frontend — ~90% (UI + routing + WebSocket send done, REST API calls pending)
+### Frontend — ~92% (UI + routing + WebSocket + REST API all done)
 - Vue Router 4: `/chat/:conversationId` (ChatView), `/office` (lazy), root redirect
 - 3-col IM layout: SideBar (route-based active state) + ChatList (route push, create conv) + ChatWindow (auto-scroll, MessageInput decoupled)
 - Message types: text / code (Monaco Editor) / artifact_preview (click→full-screen overlay)
 - **C7 complete**: ChatWindow connected to real STOMP/WebSocket, replaced setTimeout mock
+- **REST API connected**: ChatView.onMounted loads conversation list (GET /conversations) + agent list (GET /agents), ChatWindow loads message history (GET /conversations/{id}/messages)
 - WebSocket initialized in `ChatView.onMounted`, `sendMessage()` checks `ws.connected` — sends via WS or shows offline toast
 - Offline toast: floating "Service connection issue, please retry" prompt (4s auto-dismiss, manual X close, dismiss on conversation switch)
 - Conversation switch: auto-cleans loading/error/streaming state, MessageInput re-created via `:key` for input clear
+- Conversation creation: REST API with graceful fallback, subscribe properly wired on route change
 - Office scene: SVG 8-seat 3D desk layout, GSAP kick-out/walk-in animations, multi-office management (create/disband/switch), invite panel
-- Axios configured (interceptors ready), API calls gracefully degrade to mock data on failure
-- **Pending**: REST API conversation list/agent list loading, conversation creation API wiring
+- All API calls gracefully degrade to mock data on failure
+- **Pending**: artifact preview inline rendering, agent selection UI in conversation settings
 
 ### Backend Java — ~65% (data + service + REST controllers + WebSocket handler all done)
 - Spring Boot compiles and starts on port 8080
@@ -148,7 +150,7 @@ docs/                              # 5 design docs (v1.0)
 - **WebSocketController handler filled**: save message → agent routing → context build → AgentGatewayService SSE call → STOMP push to topic
 - AgentGatewayService SSE parser fixed: handles Netty buffer chunking + missing `data:` prefix
 - H2 file-based DB, Java-exclusive (Python is stateless gateway, no DB access)
-- **Pending**: Frontend REST API wiring for conversation/agent list loading, end-to-end user auth
+- **Pending**: /internal/artifacts endpoint (P1), agentType dynamic routing (P2), end-to-end user auth (P1)
 
 ### Agent Service — ~80% (adapters + prompts + agent registry all done)
 - FastAPI starts, single router `/api/agent` with `POST /chat`
