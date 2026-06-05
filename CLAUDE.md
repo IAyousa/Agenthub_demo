@@ -71,9 +71,11 @@ backend-java/                      # Spring Boot — ~55% complete (data + servi
 │   │   ├── ArtifactConfig.java    # Static resource mapping: /artifacts/** → file:./artifacts/
 │   │   └── SecurityConfig.java    # Comment placeholder (Spring Security + JWT reserved for P1)
 │   ├── controller/
-│   │   ├── WebSocketController.java # @MessageMapping("/chat.send") — handler body empty, 3 services ready for wiring
+│   │   ├── WebSocketController.java # @MessageMapping("/chat.send") — handler filled: save→route→context→SSE→STOMP push
 │   │   ├── AgentController.java   # CRUD: GET/POST /agents, GET /agents/{id}. Type validation, avatarUrl, isBuiltin detection
-│   │   └── ArtifactController.java # CRUD: POST/GET/DELETE /artifacts, GET /conversations/{id}/artifacts. Path traversal protection
+│   │   ├── ArtifactController.java # CRUD: POST/GET/DELETE /artifacts, GET /conversations/{id}/artifacts. Path traversal protection
+│   │   ├── ConversationController.java # CRUD: 7 REST endpoints for conversation + agent management
+│   │   └── MessageController.java  # Paginated message history + pin/unpin with conversation-scoped validation
 │   ├── dto/
 │   │   ├── SendMessageRequest.java # conversationId, content, agentId (Lombok @Data)
 │   │   ├── MessageChunk.java      # content, isComplete, agentId, agentName, messageType, messageId, type
@@ -86,7 +88,8 @@ backend-java/                      # Spring Boot — ~55% complete (data + servi
 │       ├── AgentGatewayService.java # FULL: WebClient SSE parser, AgentToken callback (token/finish/error), aligned to /api/agent/chat
 │       ├── ArtifactService.java   # Upload/query/download/delete, @PostConstruct orphan recovery, path traversal protection
 │       ├── ConversationService.java # FULL: CRUD, agent add/remove, archive, user-scoped queries
-│       └── MessageService.java    # FULL: send, paginated history, pin/unpin, context assembly
+│       ├── MessageService.java    # FULL: send, paginated history, pin/unpin, context assembly
+│       └── WebSocketSessionManager.java # STOMP session management via SimpMessagingTemplate
 ├── src/main/resources/
 │   ├── application.yml            # H2 file-based DB (AUTO_SERVER=TRUE), JPA ddl-auto update, CORS, port 8080
 │   └── data.sql                   # Seed data: Claude Code + Codex agents (H2 MERGE INTO syntax)
@@ -130,19 +133,20 @@ docs/                              # 5 design docs (v1.0)
 - Conversation switch: auto-cleans loading/error/streaming state, MessageInput re-created via `:key` for input clear
 - Office scene: SVG 8-seat 3D desk layout, GSAP kick-out/walk-in animations, multi-office management (create/disband/switch), invite panel
 - Axios configured (interceptors ready), API calls gracefully degrade to mock data on failure
-- **Pending**: REST API conversation list/agent list loading, conversation creation API, end-to-end AI reply stream (waiting for backend WebSocketController)
+- **Pending**: REST API conversation list/agent list loading, conversation creation API wiring
 
-### Backend Java — ~55% (data + service + agent/artifact REST done, controllers & WS handler pending)
+### Backend Java — ~65% (data + service + REST controllers + WebSocket handler all done)
 - Spring Boot compiles and starts on port 8080
 - **Config layer done**: WebSocketConfig (STOMP + SockJS at `/ws-chat`), CorsConfig (Servlet Filter), ArtifactConfig (static resource mapping), SecurityConfig (placeholder, P1)
 - **Data layer done**: 5 JPA entities (all with @PrePersist UUID generation + timestamps), Message entity has 2 DB indexes
 - 5 Repository interfaces (User, Conversation, Message, Agent, Artifact + custom queries)
 - `data.sql` seeds Claude Code + Codex agents (H2 `MERGE INTO` syntax)
-- **Service layer done**: ConversationService (full CRUD, agent management, archive), MessageService (send, paginate, pin, context building), AgentGatewayService (full SSE parser), ArtifactService (upload, download, delete, orphan recovery)
-- **REST controllers done**: AgentController (GET/POST /agents, GET /agents/{id}), ArtifactController (upload/download/list/delete)
-- `WebSocketController` has @MessageMapping("/chat.send") but **empty handler body** — all 3 dependent services are ready for wiring
+- **Service layer done**: ConversationService, MessageService, AgentGatewayService, ArtifactService, WebSocketSessionManager (STOMP session management)
+- **REST controllers done**: AgentController, ArtifactController, ConversationController (7 endpoints), MessageController (paginated messages + pin with conversation-scoped validation)
+- **WebSocketController handler filled**: save message → agent routing → context build → AgentGatewayService SSE call → STOMP push to topic
+- AgentGatewayService SSE parser fixed: handles Netty buffer chunking + missing `data:` prefix
 - H2 file-based DB, Java-exclusive (Python is stateless gateway, no DB access)
-- **Pending**: ConversationController, MessageController, WebSocketSessionManager, WebSocket message push logic, WebSocketController handler implementation
+- **Pending**: Frontend REST API wiring for conversation/agent list loading, end-to-end user auth
 
 ### Agent Service — ~75% (adapters complete, stateless gateway)
 - FastAPI starts, single router `/api/agent` with `POST /chat`
