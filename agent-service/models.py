@@ -45,6 +45,10 @@ class AgentChatRequest(BaseModel):
                     "MVP阶段为空列表，Python使用config.py的AGENT_REGISTRY作为fallback。"
                     "P1阶段由Java从DB查询后通过此字段传入，P1末期迁至Redis共享缓存。",
     )
+    conversationId: Optional[str] = Field(
+        default=None,
+        description="会话ID，用于关联产物上传到 /internal/artifacts"
+    )
 
 
 class AgentChatResponse(BaseModel):

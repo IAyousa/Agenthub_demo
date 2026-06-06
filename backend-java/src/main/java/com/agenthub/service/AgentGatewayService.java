@@ -32,7 +32,8 @@ public class AgentGatewayService {
      * @param onToken      token 回调，携带 agentId/agentName 用于 Agent 切换
      */
     public void sendToAgent(String context, String agentType, String systemPrompt,
-                            String workingDirectory, Consumer<AgentToken> onToken) {
+                            String workingDirectory, String conversationId,
+                            Consumer<AgentToken> onToken) {
         Map<String, Object> body = new HashMap<>();
         body.put("agentType", agentType != null ? agentType : "claude_code");
         body.put("systemPrompt", systemPrompt != null ? systemPrompt : "");
@@ -40,6 +41,9 @@ public class AgentGatewayService {
         body.put("stream", true);
         if (workingDirectory != null && !workingDirectory.isEmpty()) {
             body.put("workingDirectory", workingDirectory);
+        }
+        if (conversationId != null && !conversationId.isEmpty()) {
+            body.put("conversationId", conversationId);
         }
 
         webClient.post()

@@ -166,18 +166,22 @@ async def chat(data: AgentChatRequest, request: Request):
         return _stream_response(
             adapter, agent_type, agent_name, agent_id,
             context, system_prompt, data.workingDirectory,
+            data.conversationId,
         )
     else:
         return await _non_stream_response(
             adapter, context, system_prompt, data.workingDirectory,
+            data.conversationId,
         )
 
 
-def _stream_response(adapter, agent_type, agent_name, agent_id, context, system_prompt, working_directory):
+def _stream_response(adapter, agent_type, agent_name, agent_id, context, system_prompt,
+                     working_directory, conversation_id):
     """SSE 流式响应，严格对齐 API 契约文档 4.2 节 SSE 格式。"""
 
     async def event_generator():
         message_id = None
+        full_text: list[str] = []
 
         async for chunk in adapter.chat_stream(
             message=context,
@@ -191,8 +195,10 @@ def _stream_response(adapter, agent_type, agent_name, agent_id, context, system_
                 message_id = chunk.get("message_id", "")
 
             elif chunk_type == "msg_chunk":
+                delta = chunk.get("delta", "")
+                full_text.append(delta)
                 sse_data = {
-                    "token": chunk.get("delta", ""),
+                    "token": delta,
                     "finish": False,
                     "agentId": agent_id,
                     "agentName": agent_name,
@@ -206,6 +212,14 @@ def _stream_response(adapter, agent_type, agent_name, agent_id, context, system_
                     "messageId": message_id or "",
                 }
                 yield f"data: {json.dumps(sse_data, ensure_ascii=False)}\n\n"
+
+                # After agent completes, detect code blocks and upload artifacts
+                if conversation_id and message_id:
+                    import asyncio
+                    from app.utils.artifact_uploader import detect_and_upload
+                    asyncio.ensure_future(
+                        detect_and_upload("".join(full_text), conversation_id, message_id)
+                    )
 
             elif chunk_type == "error":
                 sse_data = {
@@ -226,7 +240,7 @@ def _stream_response(adapter, agent_type, agent_name, agent_id, context, system_
     )
 
 
-async def _non_stream_response(adapter, context, system_prompt, working_directory):
+async def _non_stream_response(adapter, context, system_prompt, working_directory, conversation_id):
     """非流式响应，收集完整内容后返回 JSON，严格对齐 API 契约文档 4.2 节。"""
     full_content = ""
     message_id = ""
@@ -248,6 +262,14 @@ async def _non_stream_response(adapter, context, system_prompt, working_director
                 chunk.get("message", "Agent 服务调用失败"),
                 "/api/agent/chat",
             )
+
+    # Detect code blocks and upload artifacts
+    if conversation_id and message_id:
+        import asyncio
+        from app.utils.artifact_uploader import detect_and_upload
+        asyncio.ensure_future(
+            detect_and_upload(full_content, conversation_id, message_id)
+        )
 
     return JSONResponse(
         status_code=200,
