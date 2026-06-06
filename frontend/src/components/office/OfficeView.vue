@@ -317,7 +317,83 @@
           :isBack="false"
         />
       </svg>
+
+      <!-- Chat toggle button (floating on the office scene) -->
+      <button
+        @click="toggleChat"
+        :class="[
+          'absolute bottom-6 right-6 z-30 w-14 h-14 rounded-2xl shadow-xl flex items-center justify-center transition-all duration-300',
+          isChatOpen
+            ? 'bg-gradient-to-br from-indigo-600 to-purple-600 text-white rotate-180'
+            : 'bg-white text-indigo-600 hover:shadow-2xl hover:scale-105'
+        ]"
+      >
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
+        </svg>
+      </button>
     </div>
+
+    <!-- Bottom chat drawer -->
+    <Transition name="drawer">
+      <div
+        v-if="isChatOpen"
+        class="absolute bottom-0 left-0 right-0 z-25 bg-white/95 backdrop-blur-xl border-t border-indigo-100 shadow-2xl flex flex-col"
+        :style="{ height: '45%', minHeight: '320px' }"
+      >
+        <!-- Drawer header -->
+        <div class="flex items-center justify-between px-5 py-3 border-b border-slate-100 shrink-0">
+          <div class="flex items-center gap-2">
+            <div class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+            <span class="text-sm font-semibold text-slate-700">{{ currentTitle || '办公室群聊' }}</span>
+          </div>
+          <button
+            @click="isChatOpen = false"
+            class="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+          >
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <!-- Messages -->
+        <div ref="chatListRef" class="flex-1 overflow-y-auto py-3">
+          <div v-if="currentMessages.length === 0" class="flex flex-col items-center justify-center h-full text-slate-400">
+            <svg class="w-12 h-12 mb-3 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+            </svg>
+            <p class="text-sm">暂无消息，开始聊天吧</p>
+          </div>
+          <ChatMessage
+            v-for="msg in currentMessages"
+            :key="msg.id"
+            :id="msg.id"
+            :role="msg.role"
+            :type="msg.type"
+            :content="msg.content"
+            :metadata="msg.metadata"
+          />
+          <!-- Loading indicator -->
+          <div v-if="isLoading" class="flex items-center gap-2 px-5 py-3">
+            <div class="flex gap-1">
+              <span class="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style="animation-delay: 0ms"></span>
+              <span class="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style="animation-delay: 150ms"></span>
+              <span class="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style="animation-delay: 300ms"></span>
+            </div>
+            <span class="text-xs text-slate-400">Agent 正在思考...</span>
+          </div>
+        </div>
+
+        <!-- Input -->
+        <div class="border-t border-slate-100 shrink-0">
+          <MessageInput
+            :disabled="isLoading"
+            @send="handleOfficeSend"
+          />
+        </div>
+      </div>
+    </Transition>
 
     <!-- 群主详情弹窗 -->
     <Transition name="modal-fade">
@@ -489,20 +565,81 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { useChatStore } from '../../stores/chat'
+import { storeToRefs } from 'pinia'
 import type { OfficeMember } from '../../stores/chat'
 import StickFigure from './StickFigure.vue'
 import OfficeChair from './OfficeChair.vue'
 import CreateOfficeModal from './CreateOfficeModal.vue'
+import ChatMessage from '../chat/ChatMessage.vue'
+import MessageInput from '../chat/MessageInput.vue'
 import gsap from 'gsap'
 
 const chatStore = useChatStore()
+const { currentMessages, isLoading, currentTitle } = storeToRefs(chatStore)
 const showMemberInfoPanel = ref(false)
 const showInvitePanel = ref(false)
 const showCreateModal = ref(false)
 const showOwnerDetailModal = ref(false)
 const showDisbandConfirmModal = ref(false)
+const isChatOpen = ref(false)
+const chatInputText = ref('')
+const chatListRef = ref<HTMLElement | null>(null)
+
+const route = useRoute()
+
+onMounted(async () => {
+  chatStore.initWebSocket()
+  await chatStore.loadConversationList()
+
+  // Reconstruct offices from group conversations
+  chatStore.syncOfficesFromConversations()
+
+  const convId = route.params.conversationId as string | undefined
+  if (convId) {
+    const office = offices.value.find(o => o.conversationId === convId)
+    if (office) {
+      switchOffice(office.id)
+      isChatOpen.value = true
+      nextTick(() => {
+        chatStore.openOfficeChat(office.id)
+      })
+    }
+  }
+})
+
+const toggleChat = () => {
+  isChatOpen.value = !isChatOpen.value
+  if (isChatOpen.value) {
+    chatStore.openOfficeChat(currentOfficeId.value)
+    nextTick(() => {
+      if (chatListRef.value) {
+        chatListRef.value.scrollTop = chatListRef.value.scrollHeight
+      }
+    })
+  }
+}
+
+const handleOfficeSend = (content: string) => {
+  if (!content.trim()) return
+  chatStore.sendMessage(content.trim())
+  nextTick(() => {
+    if (chatListRef.value) {
+      chatListRef.value.scrollTop = chatListRef.value.scrollHeight
+    }
+  })
+}
+
+// Auto-scroll when new messages arrive
+watch(currentMessages, () => {
+  nextTick(() => {
+    if (chatListRef.value && isChatOpen.value) {
+      chatListRef.value.scrollTop = chatListRef.value.scrollHeight
+    }
+  })
+}, { deep: true })
 const clickedMember = ref<OfficeMember | null>(null)
 const clickSeatIndex = ref(-1)
 const panelX = ref(0)
@@ -515,6 +652,9 @@ const currentOffice = computed(() => chatStore.currentOffice)
 
 const switchOffice = (officeId: string) => {
   chatStore.switchOffice(officeId)
+  if (isChatOpen.value) {
+    chatStore.openOfficeChat(officeId)
+  }
 }
 
 // 角色状态跟踪
@@ -820,9 +960,10 @@ const confirmDisbandOffice = () => {
 }
 
 // 处理新建办公室
-const handleCreateOffice = (data: { name: string; description: string; maxMembers: number; theme: string }) => {
-  chatStore.createOffice(data)
+const handleCreateOffice = async (data: { name: string; description: string; maxMembers: number; theme: string }) => {
+  await chatStore.createOffice(data)
   showCreateModal.value = false
+  isChatOpen.value = false
 }
 </script>
 
@@ -851,5 +992,13 @@ const handleCreateOffice = (data: { name: string; description: string; maxMember
 .modal-fade-enter-to, .modal-fade-leave-from {
   opacity: 1;
   transform: scale(1);
+}
+
+.drawer-enter-active, .drawer-leave-active {
+  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.drawer-enter-from, .drawer-leave-to {
+  transform: translateY(100%);
+  opacity: 0;
 }
 </style>

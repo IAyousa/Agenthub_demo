@@ -14,7 +14,7 @@ const router = createRouter({
       component: ChatView
     },
     {
-      path: '/office',
+      path: '/office/:conversationId?',
       name: 'office',
       component: () => import('../views/OfficeView.vue')
     }

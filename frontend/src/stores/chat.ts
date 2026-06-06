@@ -84,6 +84,7 @@ export interface Office {
   maxMembers: number
   members: OfficeMember[]
   availableUsers: OfficeMember[]
+  conversationId?: string
   createdAt: string
   ownerId: string
 }
@@ -613,13 +614,55 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
-  function createOffice(data: { name: string; description: string; maxMembers: number; theme: string }) {
+  function openOfficeChat(officeId: string) {
+    const office = offices.value.find(o => o.id === officeId)
+    if (office?.conversationId) {
+      selectConversation(office.conversationId)
+    }
+  }
+
+  function syncOfficesFromConversations() {
+    // Remove offices whose conversation no longer exists
+    const existingConvIds = new Set(conversationList.value.filter(c => c.type === 'group').map(c => c.id))
+    offices.value = offices.value.filter(o => !o.conversationId || existingConvIds.has(o.conversationId))
+    // Add offices for group conversations not yet represented
+    for (const conv of conversationList.value) {
+      if (conv.type !== 'group') continue
+      if (offices.value.some(o => o.conversationId === conv.id)) continue
+      offices.value.push({
+        id: `office-synced-${conv.id}`,
+        name: conv.title,
+        theme: 'modern',
+        maxMembers: 8,
+        conversationId: conv.id,
+        createdAt: conv.updatedAt || new Date().toISOString(),
+        ownerId: '1',
+        members: [
+          { id: '1', name: '你', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix', role: 'owner', status: 'online', lastActive: '刚刚' },
+        ],
+        availableUsers: [
+          { id: 'u100', name: '陈静静', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=jingjing', role: 'member', status: 'online' },
+          { id: 'u101', name: '刘先生', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=liu', role: 'member', status: 'online' },
+        ],
+      })
+    }
+  }
+
+  async function createOffice(data: { name: string; description: string; maxMembers: number; theme: string }) {
+    let conversationId: string | undefined
+    try {
+      const conv = await apiCreateConversation({ title: data.name, type: 'group', agentIds: [] })
+      conversationId = conv.data.id
+    } catch {
+      // API 不可用时仍创建本地 office（无关联会话）
+    }
     const newOffice: Office = {
       id: `office-${Date.now()}`,
       name: data.name,
       description: data.description,
       theme: data.theme,
       maxMembers: data.maxMembers,
+      conversationId,
       createdAt: new Date().toISOString(),
       ownerId: '1',
       members: [
@@ -738,6 +781,8 @@ export const useChatStore = defineStore('chat', () => {
     officeMembers,
     availableUsersToInvite,
     switchOffice,
+    openOfficeChat,
+    syncOfficesFromConversations,
     createOffice,
     deleteOffice,
     inviteMember,
