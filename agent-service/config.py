@@ -50,7 +50,8 @@ class Settings(BaseSettings):
     # ========== Agent 调用参数 ==========
     # 控制 Agent 调用的行为
     AGENT_TIMEOUT: int = 300                          # 单次 Agent 任务超时（秒），CLI 可能执行文件操作等耗时任务
-    AGENT_WORKING_DIRECTORY: str = "."                # Agent CLI 执行任务的工作目录，默认当前目录
+    AGENT_WORKING_DIRECTORY: str = "."                # Agent CLI 执行任务的默认工作目录（fallback，不传 workingDirectory 时使用）
+    AGENT_WORKSPACE_ROOT: str = "./agent_workspaces" # Agent 独立工作区根目录，每个会话一个子目录，与项目源码隔离
 
     # ========== Agent 注册表（Fallback 缓存） ==========
     # 这是 Python 端的 Agent 元数据缓存，用于以下场景：

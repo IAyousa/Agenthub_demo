@@ -31,6 +31,7 @@ dist/
 frontend/dist/
 artifacts/
 backend-java/artifacts/
+agent-service/agent_workspaces/
 
 # ========== 日志 ==========
 *.log

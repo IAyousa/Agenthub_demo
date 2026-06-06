@@ -65,7 +65,8 @@ public class WebSocketController {
         boolean[] receivedTokens = {false};
         StringBuilder fullResponse = new StringBuilder();
 
-        agentGatewayService.sendToAgent(context, agentType, systemPrompt, token -> {
+        String workspacePath = "./agent_workspaces/" + conversationId;
+        agentGatewayService.sendToAgent(context, agentType, systemPrompt, workspacePath, token -> {
             try {
                 if (token.getToken() != null && !token.getToken().isEmpty()) {
                     receivedTokens[0] = true;

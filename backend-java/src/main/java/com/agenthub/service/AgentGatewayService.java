@@ -32,12 +32,15 @@ public class AgentGatewayService {
      * @param onToken      token 回调，携带 agentId/agentName 用于 Agent 切换
      */
     public void sendToAgent(String context, String agentType, String systemPrompt,
-                            Consumer<AgentToken> onToken) {
+                            String workingDirectory, Consumer<AgentToken> onToken) {
         Map<String, Object> body = new HashMap<>();
         body.put("agentType", agentType != null ? agentType : "claude_code");
         body.put("systemPrompt", systemPrompt != null ? systemPrompt : "");
         body.put("context", context != null ? context : "");
         body.put("stream", true);
+        if (workingDirectory != null && !workingDirectory.isEmpty()) {
+            body.put("workingDirectory", workingDirectory);
+        }
 
         webClient.post()
                 .uri("/api/agent/chat")

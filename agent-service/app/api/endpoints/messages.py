@@ -151,6 +151,12 @@ async def chat(data: AgentChatRequest, request: Request):
     agent_name = AGENT_DISPLAY_NAMES.get(agent_type, agent_type)
     agent_id = f"agent_{agent_type}"
 
+    # Create session workspace directory if specified (Agent isolation)
+    import os
+    wd = data.workingDirectory
+    if wd and wd != ".":
+        os.makedirs(wd, exist_ok=True)
+
     try:
         adapter = AdapterFactory.get_adapter(agent_type)
     except ValueError as e:
