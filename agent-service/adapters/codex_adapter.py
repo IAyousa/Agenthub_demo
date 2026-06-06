@@ -82,7 +82,7 @@ class CodexAdapter(BaseAdapter):
         if not wd or not os.path.isdir(wd):
             wd = self.default_cwd
         working_directory = wd
-        full_prompt = self._build_prompt(message, system_prompt, history)
+        full_prompt = BaseAdapter.build_prompt(message, system_prompt, history)
 
         yield {
             "type": "msg_start",
@@ -100,7 +100,6 @@ class CodexAdapter(BaseAdapter):
                 ),
                 "message_id": message_id,
             }
-            yield {"type": "msg_end", "message_id": message_id}
             return
 
         cli_args = [resolved_command, "exec"] + self.cli_args + [full_prompt]
@@ -122,6 +121,8 @@ class CodexAdapter(BaseAdapter):
             }
             yield {"type": "msg_end", "message_id": message_id}
             return
+
+        has_error = False
 
         async def read_stderr():
             """后台读取 stderr，避免管道阻塞。"""
@@ -149,6 +150,7 @@ class CodexAdapter(BaseAdapter):
             returncode = await asyncio.wait_for(process.wait(), timeout=self.timeout)
         except asyncio.TimeoutError:
             process.kill()
+            has_error = True
             yield {
                 "type": "error",
                 "message": f"OpenAI Codex CLI 执行超时（{self.timeout}s）",
@@ -156,6 +158,7 @@ class CodexAdapter(BaseAdapter):
             }
         else:
             if returncode != 0:
+                has_error = True
                 stderr_output = b""
                 if process.stderr:
                     try:
@@ -175,7 +178,8 @@ class CodexAdapter(BaseAdapter):
             except asyncio.CancelledError:
                 pass
 
-        yield {
-            "type": "msg_end",
-            "message_id": message_id,
-        }
+        if not has_error:
+            yield {
+                "type": "msg_end",
+                "message_id": message_id,
+            }

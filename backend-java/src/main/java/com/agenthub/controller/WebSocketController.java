@@ -46,8 +46,12 @@ public class WebSocketController {
                 conversationId, "system", "user", content.trim(), "text", null);
         log.info("User message saved: id={}", userMessage.getId());
 
-        // Step 2: Resolve agent from DB (MVP: default to claude_code)
-        Agent agent = agentRepository.findById("agent_claude_001").orElse(null);
+        // Step 2: Resolve agent from request (fallback to claude_code)
+        String agentId = request.getAgentId();
+        if (agentId == null || agentId.isBlank()) {
+            agentId = "agent_claude_001";
+        }
+        Agent agent = agentRepository.findById(agentId).orElse(null);
         String agentType = agent != null ? agent.getType() : "claude_code";
         String systemPrompt = (agent != null && agent.getSystemPrompt() != null)
                 ? agent.getSystemPrompt() : "";
@@ -85,6 +89,13 @@ public class WebSocketController {
                     messagingTemplate.convertAndSend(topic, chunk);
                 }
 
+                if (token.getError() != null && !token.getError().isEmpty()) {
+                    log.error("Agent error: {}", token.getError());
+                    String friendlyMsg = friendlyErrorMessage(agentType, token.getError());
+                    messagingTemplate.convertAndSend(topic, errorChunk(friendlyMsg));
+                    return;
+                }
+
                 if (token.isFinish()) {
                     if (receivedTokens[0]) {
                         log.info("Agent response completed: {} chars, conversationId={}",
@@ -112,11 +123,6 @@ public class WebSocketController {
                     finish.put("messageId", token.getMessageId() != null ? token.getMessageId() : "");
                     finish.put("messageType", "text");
                     messagingTemplate.convertAndSend(topic, finish);
-                }
-
-                if (token.getError() != null && !token.getError().isEmpty()) {
-                    log.error("Agent error: {}", token.getError());
-                    messagingTemplate.convertAndSend(topic, errorChunk(token.getError()));
                 }
             } catch (Exception e) {
                 log.error("Failed to push chunk", e);
@@ -164,13 +170,27 @@ public class WebSocketController {
         };
     }
 
+    private String friendlyErrorMessage(String agentType, String rawError) {
+        String agentName = getAgentName(agentType);
+        if (rawError.contains("未找到") || rawError.contains("not found")) {
+            return agentName + " 未安装，请联系管理员配置该 Agent 的 CLI 工具。";
+        }
+        if (rawError.contains("超时") || rawError.contains("timeout")) {
+            return agentName + " 响应超时，请稍后重试。";
+        }
+        if (rawError.contains("异常退出") || rawError.contains("exit")) {
+            return agentName + " 暂时无法使用，请检查 Agent 配置或稍后重试。";
+        }
+        return agentName + " 服务异常：" + rawError;
+    }
+
     private Map<String, Object> errorChunk(String message) {
         Map<String, Object> chunk = new LinkedHashMap<>();
         chunk.put("type", "error");
         chunk.put("content", message);
         chunk.put("isComplete", true);
         chunk.put("agentName", "System");
-        chunk.put("messageType", "error");
+        chunk.put("messageType", "text");
         return chunk;
     }
 }

@@ -91,6 +91,7 @@ export interface AgentSwitchEvent {
 export interface SendMessagePayload {
   conversationId: string
   content: string
+  agentId?: string
 }
 
 /**

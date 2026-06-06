@@ -100,7 +100,6 @@ class ClaudeAdapter(BaseAdapter):
                 ),
                 "message_id": message_id,
             }
-            yield {"type": "msg_end", "message_id": message_id}
             return
 
         cli_args = [resolved_command] + self.cli_args + ["-p", full_prompt]
@@ -120,8 +119,9 @@ class ClaudeAdapter(BaseAdapter):
                 ),
                 "message_id": message_id,
             }
-            yield {"type": "msg_end", "message_id": message_id}
             return
+
+        has_error = False
 
         async def read_stderr():
             """后台读取 stderr，避免管道阻塞，并记录日志。"""
@@ -151,6 +151,7 @@ class ClaudeAdapter(BaseAdapter):
             returncode = await asyncio.wait_for(process.wait(), timeout=self.timeout)
         except asyncio.TimeoutError:
             process.kill()
+            has_error = True
             yield {
                 "type": "error",
                 "message": f"Claude Code CLI 执行超时（{self.timeout}s）",
@@ -158,6 +159,7 @@ class ClaudeAdapter(BaseAdapter):
             }
         else:
             if returncode != 0:
+                has_error = True
                 stderr_output = b""
                 if process.stderr:
                     try:
@@ -177,7 +179,8 @@ class ClaudeAdapter(BaseAdapter):
             except asyncio.CancelledError:
                 pass
 
-        yield {
-            "type": "msg_end",
-            "message_id": message_id,
-        }
+        if not has_error:
+            yield {
+                "type": "msg_end",
+                "message_id": message_id,
+            }

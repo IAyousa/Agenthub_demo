@@ -16,6 +16,15 @@
         </div>
       </div>
       <div class="flex items-center gap-4 text-indigo-500">
+        <!-- Agent Selector -->
+        <select
+          v-model="selectedAgentId"
+          class="text-xs bg-indigo-50 border border-indigo-200 rounded-lg px-2 py-1.5 text-indigo-700 cursor-pointer hover:bg-indigo-100 transition-colors outline-none"
+        >
+          <option v-for="a in chatStore.agents" :key="a.id" :value="a.id">
+            {{ a.name }}
+          </option>
+        </select>
         <MoreHorizontalIcon :size="20" class="cursor-pointer hover:text-indigo-700 transition-colors" />
       </div>
     </header>
@@ -81,7 +90,7 @@ import {
 } from 'lucide-vue-next'
 
 const chatStore = useChatStore()
-const { currentMessages, currentTitle, isLoading } = storeToRefs(chatStore)
+const { currentMessages, currentTitle, isLoading, selectedAgentId } = storeToRefs(chatStore)
 const scrollContainer = ref<HTMLElement | null>(null)
 const toastMessage = ref('')
 let toastTimer: ReturnType<typeof setTimeout> | null = null

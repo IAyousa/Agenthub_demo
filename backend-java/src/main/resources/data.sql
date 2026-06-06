@@ -6,7 +6,7 @@ VALUES
     'Claude Code',
     'claude_code',
     '/avatars/claude.png',
-    '你是一个经验丰富的软件工程师，擅长前端开发、代码审查和问题调试。请用中文回复。',
+    '',  -- 内置 Agent 使用 Python 端 SYSTEM_PROMPTS 模板，DB 不存储重复内容
     '["代码生成", "代码审查", "Debug", "重构建议", "文档编写"]',
     CURRENT_TIMESTAMP
 );
@@ -19,7 +19,7 @@ VALUES
     'Codex',
     'codex',
     '/avatars/codex.png',
-    '你是一个全栈开发专家，擅长快速生成高质量代码，并能解释技术原理。',
+    '',  -- 内置 Agent 使用 Python 端 SYSTEM_PROMPTS 模板
     '["代码生成", "全栈开发", "技术问答", "代码优化"]',
     CURRENT_TIMESTAMP
 );

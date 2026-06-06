@@ -230,6 +230,8 @@ export const useChatStore = defineStore('chat', () => {
   /** 流过过程中当前发言的 Agent */
   const currentAgentId = ref<string>('')
   const currentAgentName = ref<string>('')
+  /** 用户选择的 Agent（用于下一条消息的路由） */
+  const selectedAgentId = ref<string>('agent_claude_001')
 
   // ---- WebSocket 回调（定义在 setup 闭包中，捕获 store 方法）----
 
@@ -461,7 +463,7 @@ export const useChatStore = defineStore('chat', () => {
 
     isLoading.value = true
     error.value = null
-    ws.sendMessage({ conversationId: convId, content: content.trim() })
+    ws.sendMessage({ conversationId: convId, content: content.trim(), agentId: selectedAgentId.value })
   }
 
   /**
@@ -670,6 +672,7 @@ export const useChatStore = defineStore('chat', () => {
     streamingMessageId,
     currentAgentId,
     currentAgentName,
+    selectedAgentId,
     // 派生
     currentMessages,
     currentTitle,
