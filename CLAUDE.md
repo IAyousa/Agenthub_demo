@@ -131,20 +131,21 @@ docs/                              # 5 design docs (v1.0)
 
 ## Current State Summary
 
-### Frontend — ~92% (UI + routing + WebSocket + REST API all done)
+### Frontend — ~95% (UI + routing + WebSocket + REST API + Markdown + agent selection all done)
 - Vue Router 4: `/chat/:conversationId` (ChatView), `/office` (lazy), root redirect
-- 3-col IM layout: SideBar (route-based active state) + ChatList (route push, create conv) + ChatWindow (auto-scroll, MessageInput decoupled)
-- Message types: text / code (Monaco Editor) / artifact_preview (click→full-screen overlay)
+- 3-col IM layout: SideBar + ChatList (hover delete, search, create) + ChatWindow (auto-scroll, MessageInput decoupled)
+- Message types: text (Markdown rendered, code blocks with copy button) / code (Monaco Editor) / artifact_preview (click→full-screen overlay, refresh-safe)
+- **Agent selection**: ChatWindow header dropdown to switch between Claude Code / Codex, sends agentId via STOMP
+- **Markdown rendering**: messages parsed with `marked`, full styling for headings/code blocks/tables/blockquotes
+- **Code blocks**: DeepSeek-style dark theme header bar with language label + copy button
+- **Message actions**: hover action bar (copy button), extensible container for future buttons
+- **Conversation delete**: hover X button on ChatList items, store handles API + local cleanup + auto-navigate
 - **C7 complete**: ChatWindow connected to real STOMP/WebSocket, replaced setTimeout mock
-- **REST API connected**: ChatView.onMounted loads conversation list (GET /conversations) + agent list (GET /agents), ChatWindow loads message history (GET /conversations/{id}/messages)
+- **REST API connected**: conversation/agent list, message history, artifact list (refresh-safe preview cards)
 - WebSocket initialized in `ChatView.onMounted`, `sendMessage()` checks `ws.connected` — sends via WS or shows offline toast
-- Offline toast: floating "Service connection issue, please retry" prompt (4s auto-dismiss, manual X close, dismiss on conversation switch)
-- Conversation switch: auto-cleans loading/error/streaming state, MessageInput re-created via `:key` for input clear
-- Conversation creation: REST API with graceful fallback, subscribe properly wired on route change
-- Office scene: SVG 8-seat 3D desk layout, GSAP kick-out/walk-in animations, multi-office management (create/disband/switch), invite panel
 - All API calls gracefully degrade to mock data on failure
-- **Artifact preview pipeline complete**: Agent code output → Python detection → /internal/artifacts upload → WebSocket preview_card → ArtifactSandbox iframe rendering
-- **Pending**: agent selection UI in conversation settings
+- **Artifact preview pipeline complete**: Agent code → Python detection → /internal/artifacts → preview_card → ArtifactSandbox iframe
+- **Pending**: agent settings panel (conversation-scoped agent configuration)
 
 ### Backend Java — ~70% (data + service + REST + WebSocket + artifact pipeline all done)
 - Spring Boot compiles and starts on port 8080
@@ -157,22 +158,23 @@ docs/                              # 5 design docs (v1.0)
 - **Agent workspace isolation**: Java passes `./agent_workspaces/{conversationId}` to Python, Agent CLI runs in session-isolated directory
 - AgentGatewayService SSE parser: split("\n") + compatible with/without "data:" prefix
 - H2 file-based DB, Java-exclusive (Python is stateless gateway, no DB access)
-- **Pending**: agentType dynamic routing (P2), end-to-end user auth (P1)
+- **Agent routing**: WebSocketController reads request.agentId, routes to correct agent adapter
+- **Error handling**: friendlyErrorMessage() maps technical errors to user-friendly Chinese messages
+- **Pending**: end-to-end user auth (P1)
 
 ### Agent Service — ~85% (adapters + prompts + registry + artifact detection all done)
 - FastAPI starts, single router `/api/agent` with `POST /chat`
 - **ClaudeAdapter**: `asyncio.subprocess` → `claude -p "prompt"`, cwd=session workspace directory
-- **CodexAdapter**: same pattern with `codex exec "prompt"`
-- **System prompts**: 8 role templates, auto-lookup by agentType
+- **CodexAdapter**: same pattern with `codex exec "prompt"` (fixed _build_prompt typo + error dedup)
+- **System prompts**: 8 role templates, auto-lookup by agentType. All prompts now explicitly state text-only mode (no file writing)
 - **AGENT_REGISTRY**: 4-agent fallback cache + agents.py utility module
 - **Artifact auto-detection**: artifact_uploader.py regex-extracts code blocks after agent completes → httpx POST /internal/artifacts
 - **Session workspace isolation**: `os.makedirs(./agent_workspaces/{conversationId})`, Agent CLI cwd=isolated directory
 - Stream: SSE, non-stream: JSON
 - `/health` endpoint, global error handlers (400/404/500)
-- `/health` endpoint: returns `status`, `version`, `uptime`
-- Global error handlers: 400/404/500 with unified `{error, message, timestamp, path}` format
-- **No database access** — receives pre-assembled `context` (chat history text) from Java, returns token stream
-- **Pending**: `http_adapter.py` (D13, custom Agent HTTP API), `orchestrator.py` (P2, multi-agent scheduling)
+- Friendly error messages: adapter errors mapped to user-friendly Chinese text in Java layer
+- **No database access** — receives pre-assembled `context` from Java, returns token stream
+- **Pending**: `http_adapter.py` (D13), `orchestrator.py` (P2)
 
 ### Doc-vs-Code Gaps
 - **Python is stateless gateway** — docs originally planned Python sharing H2 via JPype/jaydebeapi. Now pure CLI subprocess forwarding, zero DB access. Planned agents/conversations/artifacts CRUD endpoints were removed.
