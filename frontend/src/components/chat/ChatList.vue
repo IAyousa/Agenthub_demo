@@ -36,6 +36,10 @@ const handleSelect = (id: string) => {
   }
 }
 
+const handleDelete = (id: string) => {
+  chatStore.deleteConversation(id)
+}
+
 const handleCreateClick = () => {
   showCreateInput.value = true
   createTitle.value = ''
@@ -133,7 +137,7 @@ const formatTime = (iso: string) => {
         :key="item.id"
         @click="handleSelect(item.id)"
         :class="[
-          'flex items-center px-3 py-3 cursor-pointer transition-all duration-200 mx-2 my-1 rounded-xl',
+          'flex items-center px-3 py-3 cursor-pointer transition-all duration-200 mx-2 my-1 rounded-xl group relative',
           currentConversationId === item.id ? 'bg-gradient-to-r from-[#eef2ff] to-[#e0e7ff] border border-[#c7d2fe] shadow-sm' : 'hover:bg-white hover:shadow-sm'
         ]"
       >
@@ -155,6 +159,13 @@ const formatTime = (iso: string) => {
           </div>
           <p class="text-xs text-gray-500 truncate mt-0.5">{{ item.lastMessage }}</p>
         </div>
+        <button
+          @click.stop="handleDelete(item.id)"
+          class="absolute right-2 top-2 w-6 h-6 rounded-full bg-red-50 hover:bg-red-100 text-red-400 hover:text-red-600 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
+          title="删除会话"
+        >
+          <XIcon :size="12" />
+        </button>
       </div>
     </div>
   </div>

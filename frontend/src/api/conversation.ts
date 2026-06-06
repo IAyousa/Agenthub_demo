@@ -258,3 +258,21 @@ export function getConversationMessages(id: string, page = 0, size = 50) {
 export function pinMessage(messageId: string, pinned: boolean) {
   return apiClient.put<PinResponse>(`/messages/${messageId}/pin`, { pinned })
 }
+
+export interface ArtifactItem {
+  id: string
+  filename: string
+  fileSize: number
+  conversationId: string
+  messageId: string
+  createdAt: string
+}
+
+export interface ArtifactListResponse {
+  artifacts: ArtifactItem[]
+}
+
+/** GET /conversations/{id}/artifacts */
+export function getConversationArtifacts(conversationId: string) {
+  return apiClient.get<ArtifactListResponse>(`/conversations/${conversationId}/artifacts`)
+}

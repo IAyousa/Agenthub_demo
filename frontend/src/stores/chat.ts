@@ -21,6 +21,8 @@ import {
   getConversations,
   getConversationMessages,
   createConversation as apiCreateConversation,
+  deleteConversation as apiDeleteConversation,
+  getConversationArtifacts,
   type ConversationListItem,
   type MessageItem,
 } from '../api/conversation'
@@ -361,9 +363,34 @@ export const useChatStore = defineStore('chat', () => {
   async function loadMessages(conversationId: string) {
     isMessagesLoading.value = true
     try {
-      const res = await getConversationMessages(conversationId, 0, 50)
-      const messages = res.data.messages.map(mapApiMessage).reverse()
+      const [msgRes, artRes] = await Promise.all([
+        getConversationMessages(conversationId, 0, 50),
+        getConversationArtifacts(conversationId).catch(() => ({ data: { artifacts: [] } })),
+      ])
+      const messages: Message[] = msgRes.data.messages.map(mapApiMessage).reverse()
       // API returns newest-first (DESC); reverse to display oldest-first in chat UI
+
+      // Merge artifacts as preview_card messages
+      const artifacts = artRes.data.artifacts || []
+      for (const a of artifacts) {
+        const ext = (a.filename || '').split('.').pop()?.toLowerCase() || 'plaintext'
+        messages.push({
+          id: `artifact-${a.id}`,
+          role: 'assistant' as const,
+          type: 'artifact_preview' as const,
+          content: a.filename,
+          created_at: a.createdAt,
+          metadata: {
+            title: a.filename,
+            language: ext,
+            previewUrl: `/artifacts/${a.id}`,
+            artifactId: a.id,
+          },
+        })
+      }
+      // Sort by created_at to interleave artifacts with messages
+      messages.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+
       if (!conversations.value[conversationId]) {
         conversations.value[conversationId] = {
           id: conversationId,
@@ -527,6 +554,24 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
+  async function deleteConversation(id: string) {
+    try {
+      await apiDeleteConversation(id)
+    } catch {
+      // API 失败也继续删除本地数据
+    }
+    conversationList.value = conversationList.value.filter(c => c.id !== id)
+    delete conversations.value[id]
+    if (currentConversationId.value === id) {
+      const remaining = conversationList.value
+      if (remaining.length > 0) {
+        selectConversation(remaining[0].id)
+      } else {
+        currentConversationId.value = ''
+      }
+    }
+  }
+
   // ==========================================================================
   // 办公室管理（保持 mock 不变，P2 阶段迁至 API）
   // ==========================================================================
@@ -684,6 +729,7 @@ export const useChatStore = defineStore('chat', () => {
     selectConversation,
     sendMessage,
     createConversation,
+    deleteConversation,
     addMessage,
     // 办公室
     offices,
