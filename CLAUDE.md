@@ -73,7 +73,7 @@ backend-java/                      # Spring Boot — ~55% complete (data + servi
 │   ├── controller/
 │   │   ├── WebSocketController.java # @MessageMapping("/chat.send") — handler filled: save→route→context→SSE→STOMP push
 │   │   ├── AgentController.java   # CRUD: GET/POST /agents, GET /agents/{id}. Type validation, avatarUrl, isBuiltin detection
-│   │   ├── ArtifactController.java # CRUD: POST/GET/DELETE /artifacts, GET /conversations/{id}/artifacts. Path traversal protection
+│   │   ├── ArtifactController.java # CRUD + POST /internal/artifacts (Python→Java upload), WebSocket push preview_card
 │   │   ├── ConversationController.java # CRUD: 7 REST endpoints for conversation + agent management
 │   │   └── MessageController.java  # Paginated message history + pin/unpin with conversation-scoped validation
 │   ├── dto/
@@ -81,12 +81,13 @@ backend-java/                      # Spring Boot — ~55% complete (data + servi
 │   │   ├── MessageChunk.java      # content, isComplete, agentId, agentName, messageType, messageId, type
 │   │   ├── ArtifactDTO.java       # id, filename, fileSize, conversationId, messageId, createdAt
 │   │   ├── ConversationDTO.java   # id, title, type, agentIds, createdAt, updatedAt
+│   │   ├── InternalArtifactRequest.java # conversationId, messageId, filename, content, contentType — Python→Java artifact upload
 │   │   └── PinRequest.java        # pinned: boolean
 │   ├── model/                     # User, Conversation, Message, Agent, Artifact JPA entities. @PrePersist UUID + timestamps. Message has 2 DB indexes.
 │   ├── repository/                # 5 JPA data access interfaces (User, Conversation, Message, Agent, Artifact)
 │   └── service/
 │       ├── AgentGatewayService.java # FULL: WebClient SSE parser, AgentToken callback (token/finish/error), aligned to /api/agent/chat
-│       ├── ArtifactService.java   # Upload/query/download/delete, @PostConstruct orphan recovery, path traversal protection
+│       ├── ArtifactService.java   # Upload(MultipartFile+text content)/query/download/delete, orphan recovery, path traversal protection
 │       ├── ConversationService.java # FULL: CRUD, agent add/remove, archive, user-scoped queries
 │       ├── MessageService.java    # FULL: send, paginated history, pin/unpin, context assembly
 │       └── WebSocketSessionManager.java # STOMP session management via SimpMessagingTemplate
@@ -95,25 +96,30 @@ backend-java/                      # Spring Boot — ~55% complete (data + servi
 │   └── data.sql                   # Seed data: Claude Code + Codex agents (H2 MERGE INTO syntax)
 └── pom.xml                        # SB 3.2.5: web, websocket, jpa, webflux, postgresql, h2, lombok
 
-agent-service/                     # FastAPI — ~75% complete, stateless gateway, no DB access
+agent-service/                     # FastAPI — ~80% complete, stateless gateway, no DB access
 ├── main.py                        # FULL: FastAPI app, CORS, /api/agent router, global error handlers (400/404/500), /health with uptime
-├── models.py                      # FULL: AgentChatRequest (incl. availableAgents P2 field), AgentChatResponse, HealthResponse, ErrorResponse
-├── config.py                      # FULL: pydantic-settings + AGENT_REGISTRY fallback cache (4 agents), Claude/Codex CLI commands, timeout 300s
+├── models.py                      # FULL: AgentChatRequest (incl. availableAgents P2 + conversationId), AgentChatResponse, HealthResponse, ErrorResponse
+├── config.py                      # FULL: pydantic-settings + AGENT_REGISTRY fallback cache (4 agents) + AGENT_WORKSPACE_ROOT, CLI commands, timeout 300s
 ├── adapters/
-│   ├── base_adapter.py            # FULL: strip_ansi(), build_prompt(), chat_stream() abstract, chunk contract (msg_start/msg_chunk/msg_end/error)
+│   ├── base_adapter.py            # FULL: strip_ansi(), build_prompt(), chat_stream() abstract, chunk contract
 │   ├── adapter_factory.py         # FULL: ADAPTER_MAP {claude_code, codex, custom} → ValueError on unknown type
-│   ├── claude_adapter.py          # FULL: asyncio subprocess claude -p "prompt", stdout streaming, stderr drain, timeout/kill, exit code check
-│   └── codex_adapter.py           # FULL: asyncio subprocess codex exec "prompt", same pattern with error handling
+│   ├── claude_adapter.py          # FULL: asyncio subprocess claude -p, cwd=working_directory (session isolation)
+│   └── codex_adapter.py           # FULL: asyncio subprocess codex exec, same pattern
 ├── prompts/
 │   └── system_prompts.py          # FULL: 8 role prompts (claude_code/codex/orchestrator/custom + coder/designer/reviewer/architect fallback)
-├── app/api/endpoints/
-│   ├── messages.py                # FULL: POST /chat, stream/non-stream dispatch, auto-lookup systemPrompt from templates, SSE format per contract
-│   └── agents.py                  # NEW: get_agents()/get_agent()/agent_exists() utility for AGENT_REGISTRY lookups
-├── requirements.txt               # fastapi, uvicorn, httpx, pydantic, pydantic-settings, sse-starlette, langchain, langgraph, etc.
-└── .env                           # ANTHROPIC_API_KEY, OPENAI_API_KEY (gitignored; CLI tools read from system env, Agent Service never touches keys)
+├── app/
+│   ├── api/endpoints/
+│   │   ├── messages.py            # FULL: POST /chat, auto-lookup systemPrompt, artifact detection on completion
+│   │   └── agents.py              # FULL: get_agents()/get_agent()/agent_exists() utility for AGENT_REGISTRY lookups
+│   └── utils/
+│       └── artifact_uploader.py   # NEW: detect_code_blocks() regex → httpx POST /internal/artifacts per code block
+├── agent_workspaces/              # Session-isolated Agent working directories (gitignored)
+├── requirements.txt               # fastapi, uvicorn, httpx, pydantic, pydantic-settings, sse-starlette, langchain, langgraph
+└── .env                           # ANTHROPIC_API_KEY, OPENAI_API_KEY (gitignored)
 
-> **Agent metadata architecture**: Java DB `agents` table is the single source of truth. Python `AGENT_REGISTRY` in config.py is a fallback cache. Java WebSocketController now sends `systemPrompt` from DB (previously hardcoded ""). P1: Java carries `availableAgents[]` in request. P1-late: Redis shared cache.
-> **Doc vs code gaps**: `http_adapter.py` (custom Agent HTTP API, D13) and `orchestrator.py` (multi-agent scheduling, P2) — not implemented yet.
+> **Agent metadata**: Java DB is source of truth, Python AGENT_REGISTRY is fallback cache. Java sends systemPrompt from DB + conversationId + workingDirectory. P1: availableAgents[] in request → Redis shared cache.
+> **Artifact pipeline**: Agent stdout → Python artifact_uploader regex code block detection → POST /internal/artifacts → Java saveFromContent() + WebSocket preview_card → frontend ArtifactSandbox iframe.
+> **Not yet implemented**: `http_adapter.py` (D13), `orchestrator.py` (P2).
 
 docs/                              # 5 design docs (v1.0)
 ├── 项目概述与技术栈总览.md
@@ -137,28 +143,32 @@ docs/                              # 5 design docs (v1.0)
 - Conversation creation: REST API with graceful fallback, subscribe properly wired on route change
 - Office scene: SVG 8-seat 3D desk layout, GSAP kick-out/walk-in animations, multi-office management (create/disband/switch), invite panel
 - All API calls gracefully degrade to mock data on failure
-- **Pending**: artifact preview inline rendering, agent selection UI in conversation settings
+- **Artifact preview pipeline complete**: Agent code output → Python detection → /internal/artifacts upload → WebSocket preview_card → ArtifactSandbox iframe rendering
+- **Pending**: agent selection UI in conversation settings
 
-### Backend Java — ~65% (data + service + REST controllers + WebSocket handler all done)
+### Backend Java — ~70% (data + service + REST + WebSocket + artifact pipeline all done)
 - Spring Boot compiles and starts on port 8080
 - **Config layer done**: WebSocketConfig (STOMP + SockJS at `/ws-chat`), CorsConfig (Servlet Filter), ArtifactConfig (static resource mapping), SecurityConfig (placeholder, P1)
-- **Data layer done**: 5 JPA entities (all with @PrePersist UUID generation + timestamps), Message entity has 2 DB indexes
-- 5 Repository interfaces (User, Conversation, Message, Agent, Artifact + custom queries)
+- **Data layer done**: 5 JPA entities + 5 Repository interfaces
 - `data.sql` seeds Claude Code + Codex agents (H2 `MERGE INTO` syntax)
-- **Service layer done**: ConversationService, MessageService, AgentGatewayService, ArtifactService, WebSocketSessionManager (STOMP session management)
-- **REST controllers done**: AgentController, ArtifactController, ConversationController (7 endpoints), MessageController (paginated messages + pin with conversation-scoped validation)
-- **WebSocketController handler filled**: save message → agent routing → context build → AgentGatewayService SSE call → STOMP push to topic
-- AgentGatewayService SSE parser fixed: handles Netty buffer chunking + missing `data:` prefix
+- **Service layer done**: ConversationService, MessageService, AgentGatewayService, ArtifactService (saveFromContent for text-based artifacts), WebSocketSessionManager
+- **REST controllers done**: 5 controllers — Agent, Artifact (incl. POST /internal/artifacts + preview_card push), Conversation (7 endpoints), Message (+ WebSocketController)
+- **Artifact pipeline complete**: Python → POST /internal/artifacts → ArtifactService.saveFromContent() → WebSocket push preview_card → frontend iframe preview
+- **Agent workspace isolation**: Java passes `./agent_workspaces/{conversationId}` to Python, Agent CLI runs in session-isolated directory
+- AgentGatewayService SSE parser: split("\n") + compatible with/without "data:" prefix
 - H2 file-based DB, Java-exclusive (Python is stateless gateway, no DB access)
-- **Pending**: /internal/artifacts endpoint (P1), agentType dynamic routing (P2), end-to-end user auth (P1)
+- **Pending**: agentType dynamic routing (P2), end-to-end user auth (P1)
 
-### Agent Service — ~80% (adapters + prompts + agent registry all done)
+### Agent Service — ~85% (adapters + prompts + registry + artifact detection all done)
 - FastAPI starts, single router `/api/agent` with `POST /chat`
-- **ClaudeAdapter**: `asyncio.subprocess` → `claude -p "prompt"` → stdout line-by-line SSE
+- **ClaudeAdapter**: `asyncio.subprocess` → `claude -p "prompt"`, cwd=session workspace directory
 - **CodexAdapter**: same pattern with `codex exec "prompt"`
-- **System prompts**: 8 role templates (claude_code/codex/orchestrator/custom + 4 legacy fallback). Auto-lookup by agentType when Java sends empty systemPrompt.
-- **AGENT_REGISTRY**: 4-agent fallback cache in config.py, with `agents.py` utility module for lookup. Java DB is source of truth.
-- Stream: SSE `data: {"token":"...", "finish":false, "agentId":"...", "agentName":"..."}`, non-stream: JSON
+- **System prompts**: 8 role templates, auto-lookup by agentType
+- **AGENT_REGISTRY**: 4-agent fallback cache + agents.py utility module
+- **Artifact auto-detection**: artifact_uploader.py regex-extracts code blocks after agent completes → httpx POST /internal/artifacts
+- **Session workspace isolation**: `os.makedirs(./agent_workspaces/{conversationId})`, Agent CLI cwd=isolated directory
+- Stream: SSE, non-stream: JSON
+- `/health` endpoint, global error handlers (400/404/500)
 - `/health` endpoint: returns `status`, `version`, `uptime`
 - Global error handlers: 400/404/500 with unified `{error, message, timestamp, path}` format
 - **No database access** — receives pre-assembled `context` (chat history text) from Java, returns token stream
