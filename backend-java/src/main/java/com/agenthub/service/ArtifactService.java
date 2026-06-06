@@ -12,6 +12,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import jakarta.annotation.PostConstruct;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -123,6 +124,56 @@ public class ArtifactService {
 
         Artifact saved = artifactRepository.save(artifact);
         log.info("Artifact saved: id={}, filename={}, path={}", saved.getId(), originalFilename, filePath);
+        return toDTO(saved);
+    }
+
+    /**
+     * Save artifact from text content (used by /internal/artifacts endpoint).
+     * Writes the content string directly to disk — no MultipartFile needed.
+     */
+    @Transactional
+    public ArtifactDTO saveFromContent(String conversationId, String messageId, String filename,
+                                        String content, String contentType) throws IOException {
+        if (conversationId == null || conversationId.isBlank()) {
+            throw new IllegalArgumentException("会话ID不能为空");
+        }
+        validatePathSegment(conversationId);
+        if (messageId != null && !messageId.isBlank()) {
+            validatePathSegment(messageId);
+        }
+        if (filename == null || filename.isBlank()) {
+            filename = "untitled";
+        }
+        validatePathSegment(filename);
+        if (content == null) {
+            content = "";
+        }
+
+        String ext = "";
+        int dot = filename.lastIndexOf('.');
+        if (dot > 0) {
+            ext = filename.substring(dot);
+        }
+
+        String id = java.util.UUID.randomUUID().toString();
+        String storedName = id + ext;
+
+        Path dir = Paths.get(storagePath, conversationId, messageId != null ? messageId : "");
+        Files.createDirectories(dir);
+
+        Path filePath = dir.resolve(storedName);
+        Files.writeString(filePath, content, StandardCharsets.UTF_8);
+
+        Artifact artifact = new Artifact();
+        artifact.setId(id);
+        artifact.setFilename(filename);
+        artifact.setStoredName(storedName);
+        artifact.setFileSize((long) content.getBytes(StandardCharsets.UTF_8).length);
+        artifact.setConversationId(conversationId);
+        artifact.setMessageId(messageId != null && !messageId.isBlank() ? messageId : null);
+
+        Artifact saved = artifactRepository.save(artifact);
+        log.info("Artifact saved from content: id={}, filename={}, path={}", saved.getId(), filename, filePath);
         return toDTO(saved);
     }
 
