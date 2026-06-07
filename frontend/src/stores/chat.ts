@@ -146,7 +146,7 @@ function mapApiMessage(api: MessageItem): Message {
 
 export const useChatStore = defineStore('chat', () => {
   // ---- 基础状态 ----
-  const currentConversationId = ref<string>('conv_frontend_001')
+  const currentConversationId = ref<string>('')
   const mobileView = ref<'list' | 'chat'>('list')
   const currentView = ref<AppView>('chat')
 
@@ -157,75 +157,10 @@ export const useChatStore = defineStore('chat', () => {
   const error = ref<string | null>(null)
   const agents = ref<AgentListItem[]>([])
 
-  // ---- 数据状态（保留 mock 默认值，API 成功时覆盖）----
-  const conversations = ref<Record<string, Conversation>>({
-    'conv_frontend_001': {
-      id: 'conv_frontend_001',
-      title: '前端博客开发',
-      messages: [
-        {
-          id: 'welcome-frontend',
-          role: 'assistant',
-          type: 'text',
-          content: '你好！我是 Claude Code，我会协助你完成前端博客的开发任务。让我们开始吧！',
-          created_at: new Date().toISOString()
-        }
-      ]
-    },
-    'conv_backend_001': {
-      id: 'conv_backend_001',
-      title: '后端接口重构',
-      messages: [
-        {
-          id: 'welcome-backend',
-          role: 'assistant',
-          type: 'text',
-          content: '你好！我是 Codex，我会协助你重构后端接口。请告诉我需要重构哪些接口？',
-          created_at: new Date().toISOString()
-        }
-      ]
-    },
-    'conv_review_001': {
-      id: 'conv_review_001',
-      title: '代码审查',
-      messages: [
-        {
-          id: 'welcome-review',
-          role: 'assistant',
-          type: 'text',
-          content: '你好！代码审查已准备就绪。请提交需要审查的代码。',
-          created_at: new Date().toISOString()
-        }
-      ]
-    }
-  })
+  // ---- 数据状态（API 加载真实数据，失败时为空）----
+  const conversations = ref<Record<string, Conversation>>({})
 
-  const conversationList = ref<ConversationSummary[]>([
-    {
-      id: 'conv_frontend_001',
-      title: '前端博客开发',
-      type: 'direct',
-      lastMessage: '已生成 App.jsx 组件',
-      updatedAt: new Date(Date.now() - 3600000).toISOString(),
-      agentNames: ['Claude Code'],
-    },
-    {
-      id: 'conv_backend_001',
-      title: '后端接口重构',
-      type: 'direct',
-      lastMessage: '完成了 User API 和 Message API 的重构',
-      updatedAt: new Date(Date.now() - 7200000).toISOString(),
-      agentNames: ['Codex'],
-    },
-    {
-      id: 'conv_review_001',
-      title: '代码审查',
-      type: 'direct',
-      lastMessage: '发现 3 处潜在性能问题，建议优化',
-      updatedAt: new Date(Date.now() - 86400000).toISOString(),
-      agentNames: ['Claude Code', 'Codex'],
-    },
-  ])
+  const conversationList = ref<ConversationSummary[]>([])
 
   // ---- 流式消息状态 ----
   /** 当前正在流式接收的消息的临时 ID */
@@ -252,6 +187,8 @@ export const useChatStore = defineStore('chat', () => {
     }
 
     if (!streamMsg) {
+      // 清除响应超时定时器
+      if (sendTimeout) { clearTimeout(sendTimeout); sendTimeout = null }
       // 第一条 token 到达时创建占位消息
       const newId = `streaming_${Date.now()}`
       streamMsg = {
@@ -307,6 +244,7 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   const handleWsError = (err: string) => {
+    if (sendTimeout) { clearTimeout(sendTimeout); sendTimeout = null }
     error.value = err
     isLoading.value = false
   }
@@ -427,6 +365,12 @@ export const useChatStore = defineStore('chat', () => {
   function selectConversation(id: string) {
     if (currentConversationId.value === id) return
 
+    // 校验会话是否存在（防止已删除的会话被选中）
+    if (conversationList.value.length > 0 && !conversationList.value.some(c => c.id === id)) {
+      currentConversationId.value = ''
+      return
+    }
+
     // 取消旧订阅
     if (wsConnected.value && currentConversationId.value) {
       const ws = getWsClient(wsCallbacks)
@@ -491,8 +435,20 @@ export const useChatStore = defineStore('chat', () => {
 
     isLoading.value = true
     error.value = null
+
+    // 30 秒无响应超时保护
+    if (sendTimeout) clearTimeout(sendTimeout)
+    sendTimeout = setTimeout(() => {
+      if (isLoading.value) {
+        isLoading.value = false
+        error.value = 'Agent 响应超时，请检查服务是否正常运行'
+      }
+    }, 30000)
+
     ws.sendMessage({ conversationId: convId, content: content.trim(), agentId: selectedAgentId.value })
   }
+
+  let sendTimeout: ReturnType<typeof setTimeout> | null = null
 
   /**
    * 创建新会话，返回新会话的 ID。

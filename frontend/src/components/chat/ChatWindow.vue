@@ -43,12 +43,26 @@
       </div>
     </Transition>
 
+    <!-- Empty state: no conversation selected -->
+    <main v-if="!chatStore.currentConversationId" class="flex-1 flex items-center justify-center bg-transparent">
+      <div class="text-center">
+        <div class="w-20 h-20 mx-auto mb-5 rounded-2xl bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center">
+          <svg class="w-10 h-10 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 20.25c4.97 0 9-3.694 9-8.25s-4.03-8.25-9-8.25S3 7.444 3 12c0 2.104.859 4.023 2.273 5.48.432.447.74 1.04.586 1.641a4.483 4.483 0 01-.923 1.785A5.969 5.969 0 006 21c1.282 0 2.47-.402 3.445-1.087.81.22 1.668.337 2.555.337z" />
+          </svg>
+        </div>
+        <h2 class="text-lg font-semibold text-gray-600 mb-2">选择一个会话开始聊天</h2>
+        <p class="text-sm text-gray-400">点击左侧 + 按钮创建新会话，或选择一个已有会话</p>
+      </div>
+    </main>
+
     <!-- Messages -->
+    <template v-else>
     <main ref="scrollContainer" class="flex-1 overflow-y-auto py-5 bg-transparent scroll-smooth">
       <div class="max-w-6xl mx-auto px-4 md:px-10">
-        <ChatMessage 
-          v-for="msg in currentMessages" 
-          :key="msg.id" 
+        <ChatMessage
+          v-for="msg in currentMessages"
+          :key="msg.id"
           :id="msg.id"
           :role="msg.role"
           :type="msg.type"
@@ -74,6 +88,7 @@
       placeholder="输入消息..."
       @send="handleSend"
     />
+    </template>
   </div>
 </template>
 
@@ -90,7 +105,7 @@ import {
 } from 'lucide-vue-next'
 
 const chatStore = useChatStore()
-const { currentMessages, currentTitle, isLoading, selectedAgentId } = storeToRefs(chatStore)
+const { currentMessages, currentTitle, isLoading, selectedAgentId, error } = storeToRefs(chatStore)
 const scrollContainer = ref<HTMLElement | null>(null)
 const toastMessage = ref('')
 let toastTimer: ReturnType<typeof setTimeout> | null = null
@@ -102,6 +117,11 @@ const dismissToast = () => {
     toastTimer = null
   }
 }
+
+// 监听 store 的 error 状态，自动弹出 toast
+watch(error, (msg) => {
+  if (msg) showToast(msg)
+})
 
 const showToast = (msg: string) => {
   dismissToast()

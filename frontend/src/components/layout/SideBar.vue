@@ -51,7 +51,7 @@ const isChatActive = computed(() => route.name === 'chat')
 const isOfficeActive = computed(() => route.name === 'office')
 
 const goChat = () => {
-  router.push('/chat/conv_frontend_001')
+  router.push('/chat')
 }
 
 const goOffice = () => {

@@ -99,8 +99,13 @@ public class WebSocketController {
                     if (receivedTokens[0]) {
                         log.info("Agent response completed: {} chars, conversationId={}",
                                 fullResponse.length(), conversationId);
-                        messageService.saveMessage(conversationId, "system", "assistant",
-                                fullResponse.toString(), "text", getAgentName(agentType));
+                        try {
+                            messageService.saveMessage(conversationId, "system", "assistant",
+                                    fullResponse.toString(), "text", getAgentName(agentType));
+                        } catch (IllegalArgumentException e) {
+                            // 会话可能在 Agent 回复期间被删除，跳过保存
+                            log.info("Skip saving agent response — conversation already deleted: id={}", conversationId);
+                        }
                     } else {
                         // Agent returned no tokens — send fallback response
                         log.info("No tokens from agent, sending fallback to topic={}", topic);

@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { watch, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import ChatList from '../components/chat/ChatList.vue'
 import ChatWindow from '../components/chat/ChatWindow.vue'
 import ArtifactWindow from '../components/chat/ArtifactWindow.vue'
 import { useChatStore } from '../stores/chat'
 
 const route = useRoute()
+const router = useRouter()
 const chatStore = useChatStore()
 
 watch(
@@ -15,15 +16,21 @@ watch(
     if (id && typeof id === 'string') {
       chatStore.selectConversation(id)
     }
-  },
-  { immediate: true }
+  }
+  // 去掉 immediate:true — 改为 onMounted 中先加载列表再选择
 )
 
-onMounted(() => {
+onMounted(async () => {
   chatStore.mobileView = 'list'
-  chatStore.loadConversationList()  // REST API: GET /conversations
-  chatStore.loadAgents()            // REST API: GET /agents
+  await chatStore.loadConversationList()  // 先加载会话列表
+  chatStore.loadAgents()                  // REST API: GET /agents
   chatStore.initWebSocket()
+
+  // 列表加载完后，检查路由中的 conversationId 是否有效
+  const id = route.params.conversationId
+  if (id && typeof id === 'string') {
+    chatStore.selectConversation(id)
+  }
 })
 </script>
 

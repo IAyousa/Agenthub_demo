@@ -6,10 +6,10 @@ const router = createRouter({
   routes: [
     {
       path: '/',
-      redirect: '/chat/conv_frontend_001'
+      redirect: '/chat'
     },
     {
-      path: '/chat/:conversationId',
+      path: '/chat/:conversationId?',
       name: 'chat',
       component: ChatView
     },

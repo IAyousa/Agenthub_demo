@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientRequestException;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -88,7 +89,13 @@ public class AgentGatewayService {
                     }
                 })
                 .doOnComplete(() -> log.info("Agent SSE streaming completed"))
-                .doOnError(e -> log.error("Agent SSE streaming error", e))
+                .doOnError(e -> {
+                    log.error("Agent SSE streaming error", e);
+                    String friendlyMsg = e instanceof WebClientRequestException
+                            ? "Agent 服务暂时不可用，请检查 Python 服务是否已启动（端口 8000）"
+                            : "Agent 服务异常，请稍后重试";
+                    onToken.accept(AgentToken.error(friendlyMsg));
+                })
                 .subscribe();
     }
 
