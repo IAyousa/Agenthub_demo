@@ -61,9 +61,8 @@ public class WebSocketController {
             return;
         }
 
-        // Step 3: Build conversation context
-        List<Message> contextMessages = messageService.buildConversationContext(conversationId, 20);
-        String context = buildContextString(contextMessages);
+        // Step 3: Send current message only — CLI manages its own conversation memory via --continue
+        String context = content.trim();
 
         // Step 4: Stream agent response via STOMP
         boolean[] receivedTokens = {false};
@@ -152,14 +151,6 @@ public class WebSocketController {
     // Agent routing is resolved from DB in Step 2 of handleUserMessage.
     // MVP default: agent_claude_001 for all conversations.
     // Full routing (direct → session agent, group → orchestrator) is P2 scope.
-
-    private String buildContextString(List<Message> messages) {
-        StringBuilder sb = new StringBuilder();
-        for (Message msg : messages) {
-            sb.append(msg.getSenderType()).append(": ").append(msg.getContent()).append("\n");
-        }
-        return sb.toString();
-    }
 
     private String getAgentName(String agentType) {
         return switch (agentType) {

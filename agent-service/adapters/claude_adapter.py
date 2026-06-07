@@ -82,7 +82,17 @@ class ClaudeAdapter(BaseAdapter):
         if not wd or not os.path.isdir(wd):
             wd = self.default_cwd
         working_directory = wd
-        full_prompt = BaseAdapter.build_prompt(message, system_prompt, history)
+
+        is_first_message = kwargs.get("is_first_message", True)
+
+        # Build prompt: first message injects system_prompt; subsequent rely on --continue
+        if not is_first_message:
+            full_prompt = message
+        else:
+            if system_prompt:
+                full_prompt = f"{system_prompt}\n\n---\n\n{message}"
+            else:
+                full_prompt = message
 
         yield {
             "type": "msg_start",
@@ -102,7 +112,12 @@ class ClaudeAdapter(BaseAdapter):
             }
             return
 
-        cli_args = [resolved_command] + self.cli_args + ["-p", full_prompt]
+        cli_args = [resolved_command] + self.cli_args
+
+        if not is_first_message:
+            cli_args.append("--continue")
+
+        cli_args.extend(["-p", full_prompt])
 
         try:
             process = await asyncio.create_subprocess_exec(

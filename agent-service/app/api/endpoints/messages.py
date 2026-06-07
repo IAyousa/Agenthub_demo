@@ -45,6 +45,13 @@ AGENT_DISPLAY_NAMES = {
     "custom": "Custom Agent",
 }
 
+# 会话跟踪字典：记录每个 (conversationId, agentType) 的首轮状态
+# 格式: { "conv_id:agent_type": {"is_first": False} }
+# 进程内存状态，服务重启后丢失。
+# 安全降级：重启后首次调用会重新注入 system_prompt（不影响正确性）。
+# Claude 适配器另有文件系统回退检查（.claude/sessions/ 目录），可精确修正。
+_session_tracker: dict = {}
+
 _SSE_EXAMPLE = (
     'data: {"token":"好的","finish":false,"agentId":"agent_claude_code","agentName":"Claude Code"}\n\n'
     'data: {"token":"，这是","finish":false,"agentId":"agent_claude_code","agentName":"Claude Code"}\n\n'
@@ -143,6 +150,13 @@ async def chat(data: AgentChatRequest, request: Request):
     agent_type = data.agentType
     system_prompt = data.systemPrompt
 
+    # Session tracking: determine if this is the first message in the conversation
+    conv_id = data.conversationId
+    track_key = f"{conv_id}:{agent_type}" if conv_id else None
+    is_first_message = True
+    if track_key and track_key in _session_tracker:
+        is_first_message = False
+
     # Fallback: if Java didn't provide a system prompt, look up from local templates
     if not system_prompt and agent_type:
         from prompts.system_prompts import SYSTEM_PROMPTS
@@ -166,20 +180,21 @@ async def chat(data: AgentChatRequest, request: Request):
         return _stream_response(
             adapter, agent_type, agent_name, agent_id,
             context, system_prompt, data.workingDirectory,
-            data.conversationId,
+            conv_id, is_first_message, track_key,
         )
     else:
         return await _non_stream_response(
             adapter, context, system_prompt, data.workingDirectory,
-            data.conversationId,
+            conv_id, is_first_message, track_key,
         )
 
 
 def _stream_response(adapter, agent_type, agent_name, agent_id, context, system_prompt,
-                     working_directory, conversation_id):
+                     working_directory, conversation_id, is_first_message, track_key):
     """SSE 流式响应，严格对齐 API 契约文档 4.2 节 SSE 格式。"""
 
     async def event_generator():
+        nonlocal is_first_message
         message_id = None
         full_text: list[str] = []
 
@@ -188,6 +203,7 @@ def _stream_response(adapter, agent_type, agent_name, agent_id, context, system_
             system_prompt=system_prompt,
             history=[],
             working_directory=working_directory,
+            is_first_message=is_first_message,
         ):
             chunk_type = chunk.get("type")
 
@@ -206,6 +222,10 @@ def _stream_response(adapter, agent_type, agent_name, agent_id, context, system_
                 yield f"data: {json.dumps(sse_data, ensure_ascii=False)}\n\n"
 
             elif chunk_type == "msg_end":
+                # Mark session as started so subsequent messages use --continue
+                if track_key and is_first_message:
+                    _session_tracker[track_key] = {"is_first": False}
+
                 sse_data = {
                     "token": "",
                     "finish": True,
@@ -240,7 +260,8 @@ def _stream_response(adapter, agent_type, agent_name, agent_id, context, system_
     )
 
 
-async def _non_stream_response(adapter, context, system_prompt, working_directory, conversation_id):
+async def _non_stream_response(adapter, context, system_prompt, working_directory,
+                                conversation_id, is_first_message, track_key):
     """非流式响应，收集完整内容后返回 JSON，严格对齐 API 契约文档 4.2 节。"""
     full_content = ""
     message_id = ""
@@ -250,6 +271,7 @@ async def _non_stream_response(adapter, context, system_prompt, working_director
         system_prompt=system_prompt,
         history=[],
         working_directory=working_directory,
+        is_first_message=is_first_message,
     ):
         chunk_type = chunk.get("type")
         if chunk_type == "msg_start":
@@ -262,6 +284,10 @@ async def _non_stream_response(adapter, context, system_prompt, working_director
                 chunk.get("message", "Agent 服务调用失败"),
                 "/api/agent/chat",
             )
+
+    # Mark session as started so subsequent messages use --continue
+    if track_key and is_first_message:
+        _session_tracker[track_key] = {"is_first": False}
 
     # Detect code blocks and upload artifacts
     if conversation_id and message_id:

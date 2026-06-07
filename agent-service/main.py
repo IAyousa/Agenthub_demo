@@ -15,8 +15,14 @@ Swagger 文档：
     启动后访问 http://localhost:8000/docs
 """
 
+import asyncio
+import sys
 import time
 from datetime import datetime, timezone
+
+# Windows: SelectorEventLoop 支持 subprocess，ProactorEventLoop 不支持
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
