@@ -139,9 +139,14 @@ const props = defineProps<{
   metadata?: Record<string, any>
 }>()
 
+// HTML 标签正则：防止 XSS 同时保留 markdown 语法
+const HTML_TAG_RE = /<(\/?[a-zA-Z][a-zA-Z0-9]*)/g
+
 const renderedContent = computed(() => {
   if (props.type !== 'text') return ''
-  return marked.parse(props.content, { breaks: true }) as string
+  // 转义 HTML 标签（如 <script>），保留 markdown 自动链接 <url>
+  const safeContent = props.content.replace(HTML_TAG_RE, '&lt;$1')
+  return marked.parse(safeContent, { breaks: true }) as string
 })
 
 const handleArtifactClick = async () => {
@@ -198,7 +203,8 @@ const avatarUrl = computed(() => {
 .markdown-body strong { font-weight: 600; }
 .markdown-body em { font-style: italic; }
 .markdown-body code {
-  background: #f1f5f9;
+  background: #e2e8f0;
+  color: #1e293b;
   padding: 0.15em 0.4em;
   border-radius: 4px;
   font-size: 0.9em;
