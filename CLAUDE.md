@@ -20,8 +20,8 @@ Vue 3 Frontend (localhost:5173)
 
 - **Frontend**: Vue 3.5 + TypeScript + Pinia + Vue Router 4 + Tailwind CSS 4 + Vite 8
 - **Backend**: Spring Boot 3.2.5 + Java 17 + H2 (file mode, sole data source) + JPA + STOMP/WebSocket
-- **Agent Service**: FastAPI 0.109 + Python 3.11, stateless gateway, invokes local CLI tools via asyncio subprocess, no database access
-- **Agent Execution**: Local CLI — `claude -p "prompt"` / `codex exec "prompt"`, stdout streaming
+- **Agent Service**: FastAPI 0.109 + Python 3.11, stateless gateway, invokes local CLI tools via asyncio subprocess, no database access. Tracks session state via in-memory `_session_tracker` (per conversationId+agentType).
+- **Agent Execution**: Local CLI — `claude -p "prompt"` / `claude --continue -p "prompt"` (native session memory) / `codex exec "prompt"`, stdout streaming. Claude Code uses `--continue` to restore session context; Codex `exec resume` planned for Phase 2.
 - **Communication**: STOMP over WebSocket (frontend↔backend), HTTP+SSE (backend↔agent)
 
 ## Project Structure (Actual Code)
@@ -71,7 +71,7 @@ backend-java/                      # Spring Boot — ~55% complete (data + servi
 │   │   ├── ArtifactConfig.java    # Static resource mapping: /artifacts/** → file:./artifacts/
 │   │   └── SecurityConfig.java    # Comment placeholder (Spring Security + JWT reserved for P1)
 │   ├── controller/
-│   │   ├── WebSocketController.java # @MessageMapping("/chat.send") — handler filled: save→route→context→SSE→STOMP push
+│   │   ├── WebSocketController.java # @MessageMapping("/chat.send") — handler filled: save→route→SSE→STOMP push (context assembly removed, CLI manages memory via --continue)
 │   │   ├── AgentController.java   # CRUD: GET/POST /agents, GET /agents/{id}. Type validation, avatarUrl, isBuiltin detection
 │   │   ├── ArtifactController.java # CRUD + POST /internal/artifacts (Python→Java upload), WebSocket push preview_card
 │   │   ├── ConversationController.java # CRUD: 7 REST endpoints for conversation + agent management
@@ -89,7 +89,7 @@ backend-java/                      # Spring Boot — ~55% complete (data + servi
 │       ├── AgentGatewayService.java # FULL: WebClient SSE parser, AgentToken callback (token/finish/error), aligned to /api/agent/chat
 │       ├── ArtifactService.java   # Upload(MultipartFile+text content)/query/download/delete, orphan recovery, path traversal protection
 │       ├── ConversationService.java # FULL: CRUD, agent add/remove, archive, user-scoped queries
-│       ├── MessageService.java    # FULL: send, paginated history, pin/unpin, context assembly
+│       ├── MessageService.java    # FULL: send, paginated history, pin/unpin, context assembly (buildConversationContext retained for future export; no longer called by WebSocketController)
 │       └── WebSocketSessionManager.java # STOMP session management via SimpMessagingTemplate
 ├── src/main/resources/
 │   ├── application.yml            # H2 file-based DB (AUTO_SERVER=TRUE), JPA ddl-auto update, CORS, port 8080
@@ -103,13 +103,13 @@ agent-service/                     # FastAPI — ~80% complete, stateless gatewa
 ├── adapters/
 │   ├── base_adapter.py            # FULL: strip_ansi(), build_prompt(), chat_stream() abstract, chunk contract
 │   ├── adapter_factory.py         # FULL: ADAPTER_MAP {claude_code, codex, custom} → ValueError on unknown type
-│   ├── claude_adapter.py          # FULL: asyncio subprocess claude -p, cwd=working_directory (session isolation)
-│   └── codex_adapter.py           # FULL: asyncio subprocess codex exec, same pattern
+│   ├── claude_adapter.py          # FULL: claude -p (1st) / claude --continue -p (subsequent), cwd=workspace (session isolation + native memory)
+│   └── codex_adapter.py           # FULL: codex exec (Phase 2: exec resume planned)
 ├── prompts/
 │   └── system_prompts.py          # FULL: 8 role prompts (claude_code/codex/orchestrator/custom + coder/designer/reviewer/architect fallback)
 ├── app/
 │   ├── api/endpoints/
-│   │   ├── messages.py            # FULL: POST /chat, auto-lookup systemPrompt, artifact detection on completion
+│   │   ├── messages.py            # FULL: POST /chat, _session_tracker (is_first_message), auto-lookup systemPrompt, artifact detection
 │   │   └── agents.py              # FULL: get_agents()/get_agent()/agent_exists() utility for AGENT_REGISTRY lookups
 │   └── utils/
 │       └── artifact_uploader.py   # NEW: detect_code_blocks() regex → httpx POST /internal/artifacts per code block
@@ -119,14 +119,15 @@ agent-service/                     # FastAPI — ~80% complete, stateless gatewa
 
 > **Agent metadata**: Java DB is source of truth, Python AGENT_REGISTRY is fallback cache. Java sends systemPrompt from DB + conversationId + workingDirectory. P1: availableAgents[] in request → Redis shared cache.
 > **Artifact pipeline**: Agent stdout → Python artifact_uploader regex code block detection → POST /internal/artifacts → Java saveFromContent() + WebSocket preview_card → frontend ArtifactSandbox iframe.
-> **Not yet implemented**: `http_adapter.py` (D13), `orchestrator.py` (P2).
+> **Not yet implemented**: `http_adapter.py` (D13), `orchestrator.py` (P2), Codex `exec resume` (Phase 2).
 
-docs/                              # 5 design docs (v1.0)
+docs/                              # 6 design docs (v1.0 + CLI memory design)
 ├── 项目概述与技术栈总览.md
 ├── 架构拓扑图与项目目录结构.md
 ├── 数据模型设计.md
 ├── API 契约定义与通信协议规范.md
-└── 基础设施配置.md                 # Updated: H2 config + quick-start checklist + MVP annotations
+├── 基础设施配置.md                 # Updated: H2 config + quick-start checklist + MVP annotations
+└── CLI原生记忆设计方案.md          # v3.1: Claude Code --continue integration design + implementation status
 ```
 
 ## Current State Summary
@@ -147,39 +148,43 @@ docs/                              # 5 design docs (v1.0)
 - **Artifact preview pipeline complete**: Agent code → Python detection → /internal/artifacts → preview_card → ArtifactSandbox iframe
 - **Pending**: agent settings panel (conversation-scoped agent configuration)
 
-### Backend Java — ~70% (data + service + REST + WebSocket + artifact pipeline all done)
+### Backend Java — ~72% (data + service + REST + WebSocket + artifact pipeline all done)
 - Spring Boot compiles and starts on port 8080
 - **Config layer done**: WebSocketConfig (STOMP + SockJS at `/ws-chat`), CorsConfig (Servlet Filter), ArtifactConfig (static resource mapping), SecurityConfig (placeholder, P1)
 - **Data layer done**: 5 JPA entities + 5 Repository interfaces
 - `data.sql` seeds Claude Code + Codex agents (H2 `MERGE INTO` syntax)
-- **Service layer done**: ConversationService, MessageService, AgentGatewayService, ArtifactService (saveFromContent for text-based artifacts), WebSocketSessionManager
+- **Service layer done**: ConversationService, MessageService (context assembly method retained but no longer called by controller), AgentGatewayService, ArtifactService (saveFromContent for text-based artifacts), WebSocketSessionManager
 - **REST controllers done**: 5 controllers — Agent, Artifact (incl. POST /internal/artifacts + preview_card push), Conversation (7 endpoints), Message (+ WebSocketController)
 - **Artifact pipeline complete**: Python → POST /internal/artifacts → ArtifactService.saveFromContent() → WebSocket push preview_card → frontend iframe preview
 - **Agent workspace isolation**: Java passes `./agent_workspaces/{conversationId}` to Python, Agent CLI runs in session-isolated directory
+- **CLI native memory**: WebSocketController no longer assembles conversation history; sends only current message. Claude Code uses `--continue` for session context restoration
 - AgentGatewayService SSE parser: split("\n") + compatible with/without "data:" prefix
 - H2 file-based DB, Java-exclusive (Python is stateless gateway, no DB access)
 - **Agent routing**: WebSocketController reads request.agentId, routes to correct agent adapter
 - **Error handling**: friendlyErrorMessage() maps technical errors to user-friendly Chinese messages
 - **Pending**: end-to-end user auth (P1)
 
-### Agent Service — ~85% (adapters + prompts + registry + artifact detection all done)
+### Agent Service — ~88% (adapters + prompts + registry + session tracking + artifact detection all done)
 - FastAPI starts, single router `/api/agent` with `POST /chat`
-- **ClaudeAdapter**: `asyncio.subprocess` → `claude -p "prompt"`, cwd=session workspace directory
-- **CodexAdapter**: same pattern with `codex exec "prompt"` (fixed _build_prompt typo + error dedup)
-- **System prompts**: 8 role templates, auto-lookup by agentType. All prompts now explicitly state text-only mode (no file writing)
+- **ClaudeAdapter**: 1st message: `claude -p "{system_prompt}\n\n{msg}"`; subsequent: `claude --continue -p "{msg}"`. `is_first_message` via kwargs. cwd=session workspace
+- **CodexAdapter**: `codex exec "prompt"` (Phase 2: `exec resume` planned). Receives `is_first_message` via kwargs
+- **Session tracking**: `messages.py` maintains `_session_tracker: dict` keyed by `{conversationId}:{agentType}`, marks `is_first=False` on `msg_end`. In-memory (restart-safe: gracefully degrades, re-injects system_prompt once)
+- **System prompts**: 8 role templates, auto-lookup by agentType. All prompts explicitly state text-only mode (no file writing)
 - **AGENT_REGISTRY**: 4-agent fallback cache + agents.py utility module
 - **Artifact auto-detection**: artifact_uploader.py regex-extracts code blocks after agent completes → httpx POST /internal/artifacts
 - **Session workspace isolation**: `os.makedirs(./agent_workspaces/{conversationId})`, Agent CLI cwd=isolated directory
 - Stream: SSE, non-stream: JSON
 - `/health` endpoint, global error handlers (400/404/500)
+- **Windows fix**: `main.py` sets `WindowsSelectorEventLoopPolicy` for asyncio subprocess support
 - Friendly error messages: adapter errors mapped to user-friendly Chinese text in Java layer
 - **No database access** — receives pre-assembled `context` from Java, returns token stream
-- **Pending**: `http_adapter.py` (D13), `orchestrator.py` (P2)
+- **Pending**: `http_adapter.py` (D13), `orchestrator.py` (P2), Codex `exec resume` (Phase 2)
 
 ### Doc-vs-Code Gaps
 - **Python is stateless gateway** — docs originally planned Python sharing H2 via JPype/jaydebeapi. Now pure CLI subprocess forwarding, zero DB access. Planned agents/conversations/artifacts CRUD endpoints were removed.
 - **Local CLI instead of cloud API** — docs `config.py` planned `CLAUDE_API_KEY`/`CODEX_API_KEY` for direct Anthropic/OpenAI HTTP calls. Now uses asyncio subprocess with local CLI; API keys read by CLI tools from system env, Agent Service never touches them.
-- **Docs planned but unimplemented**: `http_adapter.py` (D13), `orchestrator.py` (P2)
+- **CLI native session memory** — Java no longer assembles conversation history via `buildContextString()`. Claude Code uses `--continue` for context restoration; Python `_session_tracker` manages is_first_message state.
+- **Docs planned but unimplemented**: `http_adapter.py` (D13), `orchestrator.py` (P2), Codex `exec resume` (Phase 2)
 - **H2 instead of PostgreSQL** — docs specify PostgreSQL datasource, actual MVP uses H2 file mode. P1 migration: change 5 lines in YAML + 2 SQL statements.
 - **Frontend is TypeScript, not JavaScript** — docs say `JavaScript ES2022+`, actual code is all `.ts` / `<script setup lang="ts">`
 - **WebSocket endpoint is `/ws-chat`** — docs API contract says `/ws`, actual code uses `/ws-chat`
