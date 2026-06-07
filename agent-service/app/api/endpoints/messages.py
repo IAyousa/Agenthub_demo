@@ -171,6 +171,23 @@ async def chat(data: AgentChatRequest, request: Request):
     if wd and wd != ".":
         os.makedirs(wd, exist_ok=True)
 
+    # Orchestrator 路由：agentType 为空/null/orchestrator 时走多 Agent 编排
+    is_orchestrator = not agent_type or agent_type == "orchestrator"
+
+    if is_orchestrator:
+        from orchestrator import Orchestrator
+        orchestrator = Orchestrator()
+        if data.stream:
+            return _orchestrator_stream(
+                orchestrator, context, system_prompt,
+                data.workingDirectory, conv_id,
+            )
+        else:
+            return await _orchestrator_non_stream(
+                orchestrator, context, system_prompt,
+                data.workingDirectory, conv_id,
+            )
+
     try:
         adapter = AdapterFactory.get_adapter(agent_type)
     except ValueError as e:
@@ -290,6 +307,119 @@ async def _non_stream_response(adapter, context, system_prompt, working_director
         _session_tracker[track_key] = {"is_first": False}
 
     # Detect code blocks and upload artifacts
+    if conversation_id and message_id:
+        import asyncio
+        from app.utils.artifact_uploader import detect_and_upload
+        asyncio.ensure_future(
+            detect_and_upload(full_content, conversation_id, message_id)
+        )
+
+    return JSONResponse(
+        status_code=200,
+        content=AgentChatResponse(
+            content=full_content,
+            messageId=message_id,
+        ).model_dump(),
+    )
+
+
+# ==========================================================================
+# Orchestrator 多 Agent 编排响应
+# ==========================================================================
+
+def _orchestrator_stream(orchestrator, context, system_prompt,
+                         working_directory, conversation_id):
+    """Orchestrator 流式响应 — 多 Agent 协作编排。"""
+
+    async def event_generator():
+        message_id = None
+        full_text: list[str] = []
+
+        async for chunk in orchestrator.execute(
+            message=context,
+            working_directory=working_directory,
+            conversation_id=conversation_id,
+        ):
+            chunk_type = chunk.get("type")
+
+            if chunk_type == "msg_start":
+                message_id = chunk.get("message_id", "")
+
+            elif chunk_type == "msg_chunk":
+                delta = chunk.get("delta", "")
+                full_text.append(delta)
+                sse_data = {
+                    "token": delta,
+                    "finish": False,
+                    "agentId": chunk.get("agent_id", "agent_system"),
+                    "agentName": chunk.get("agent_name", "Orchestrator"),
+                }
+                yield f"data: {json.dumps(sse_data, ensure_ascii=False)}\n\n"
+
+            elif chunk_type == "agent_switch":
+                # 仅更新 Agent 信息，不产生 token（避免幽灵占位符）
+                pass
+
+            elif chunk_type == "msg_end":
+                sse_data = {
+                    "token": "",
+                    "finish": True,
+                    "messageId": message_id or "",
+                }
+                yield f"data: {json.dumps(sse_data, ensure_ascii=False)}\n\n"
+
+                # Artifact detection
+                if conversation_id and message_id:
+                    import asyncio
+                    from app.utils.artifact_uploader import detect_and_upload
+                    asyncio.ensure_future(
+                        detect_and_upload("".join(full_text), conversation_id, message_id)
+                    )
+
+            elif chunk_type == "error":
+                sse_data = {
+                    "token": "",
+                    "finish": True,
+                    "messageId": message_id or "",
+                    "error": chunk.get("message", "Orchestrator error"),
+                }
+                yield f"data: {json.dumps(sse_data, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+async def _orchestrator_non_stream(orchestrator, context, system_prompt,
+                                    working_directory, conversation_id):
+    """Orchestrator 非流式响应 — 收集完整结果后返回 JSON。"""
+    full_content = ""
+    message_id = ""
+
+    async for chunk in orchestrator.execute(
+        message=context,
+        working_directory=working_directory,
+        conversation_id=conversation_id,
+    ):
+        chunk_type = chunk.get("type")
+        if chunk_type == "msg_start":
+            message_id = chunk.get("message_id", "")
+        elif chunk_type == "msg_chunk":
+            full_content += chunk.get("delta", "")
+        elif chunk_type == "agent_switch":
+            full_content += f"\n\n**{chunk.get('agent_name', 'Agent')}**: "
+        elif chunk_type == "error":
+            return _error_json(
+                502, "AGENT_ERROR",
+                chunk.get("message", "Orchestrator 执行失败"),
+                "/api/agent/chat",
+            )
+
     if conversation_id and message_id:
         import asyncio
         from app.utils.artifact_uploader import detect_and_upload

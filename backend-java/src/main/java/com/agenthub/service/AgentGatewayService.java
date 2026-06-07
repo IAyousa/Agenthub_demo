@@ -19,7 +19,9 @@ public class AgentGatewayService {
     private final ObjectMapper objectMapper;
 
     public AgentGatewayService(WebClient.Builder webClientBuilder, ObjectMapper objectMapper) {
-        this.webClient = webClientBuilder.baseUrl("http://localhost:8000").build();
+        this.webClient = webClientBuilder
+                .baseUrl("http://localhost:8000")
+                .build();
         this.objectMapper = objectMapper;
     }
 

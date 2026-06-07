@@ -436,14 +436,14 @@ export const useChatStore = defineStore('chat', () => {
     isLoading.value = true
     error.value = null
 
-    // 30 秒无响应超时保护
+    // 120 秒无响应超时保护（Orchestrator 编排需较长时间）
     if (sendTimeout) clearTimeout(sendTimeout)
     sendTimeout = setTimeout(() => {
       if (isLoading.value) {
         isLoading.value = false
         error.value = 'Agent 响应超时，请检查服务是否正常运行'
       }
-    }, 30000)
+    }, 120000)
 
     ws.sendMessage({ conversationId: convId, content: content.trim(), agentId: selectedAgentId.value })
   }
