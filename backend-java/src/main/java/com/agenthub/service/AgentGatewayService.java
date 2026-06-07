@@ -38,7 +38,7 @@ public class AgentGatewayService {
                             String workingDirectory, String conversationId,
                             Consumer<AgentToken> onToken) {
         Map<String, Object> body = new HashMap<>();
-        body.put("agentType", agentType != null ? agentType : "claude_code");
+        body.put("agentType", agentType);  // null → Python Orchestrator 编排模式
         body.put("systemPrompt", systemPrompt != null ? systemPrompt : "");
         body.put("context", context != null ? context : "");
         body.put("stream", true);

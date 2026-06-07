@@ -633,6 +633,19 @@ export const useChatStore = defineStore('chat', () => {
     }
     offices.value.push(newOffice)
     currentOfficeId.value = newOffice.id
+
+    // 将新会话立即加入 conversationList，确保 selectConversation 校验通过
+    if (conversationId) {
+      conversationList.value.unshift({
+        id: conversationId,
+        title: data.name,
+        type: 'group',
+        lastMessage: '',
+        updatedAt: new Date().toISOString(),
+        agentNames: [],
+      })
+    }
+
     return newOffice
   }
 
