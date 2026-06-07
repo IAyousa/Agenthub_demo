@@ -10,6 +10,7 @@ chat_stream 方法，通过 SSE 协议流式返回 LLM 生成内容。
     - 消息块格式为 dict，包含 type 字段：
         {"type": "msg_start", "message_id": "uuid", "sender_id": "...", "role": "assistant"}
         {"type": "msg_chunk", "message_id": "uuid", "delta": "增量文本"}
+        {"type": "session_created", "message_id": "uuid", "session_id": "uuid"}  ← Codex/CLI 首轮执行后回传
         {"type": "msg_end", "message_id": "uuid"}
     - 调用方（messages.py 端点）通过异步迭代消费这些消息块并转发给客户端
 
