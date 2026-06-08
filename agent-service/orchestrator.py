@@ -31,18 +31,19 @@ _PLAN_INSTRUCTION = """
 {
   "analysis": "一句话分析用户需求",
   "steps": [
-    {"agent": "claude_code", "task": "具体的任务描述，包含所有必要上下文"},
+    {"agent": "claude_code", "task": "具体的任务描述"},
     {"agent": "codex", "task": "具体的任务描述"}
   ]
 }
 ```
 
 规则：
-- `agent` 必须是 "claude_code"（全栈工程师，擅长后端/架构/审查）或 "codex"（前端专家，擅长组件/样式/交互）
-- 简单任务用 1 个 Agent，跨领域任务用 2 个 Agent
-- 每个 `task` 必须自包含（包含足够的上下文让子 Agent 独立完成）
-- 如果用户请求模糊，输出空 steps 数组并追问
-"""
+- `agent`: "claude_code"（全栈工程师，首选，可处理所有任务）或 "codex"（前端专家，仅在前端任务明确且复杂时使用）
+- **重要**: 绝大多数任务用 1 个 Agent 即可。只有明确需要两个不同领域专家时才用 2 个
+- **优先选 claude_code**：除非任务是纯前端（HTML/CSS/JS组件），否则都用 claude_code
+- 对话/聊天/问候/简单问答：用 claude_code，1 个步骤
+- 每个 `task` 必须自包含且**只描述要做什么，绝对不要提及 Agent 名称**
+- 输出必须是纯 JSON，不要任何解释文字"""
 
 
 class Orchestrator:
@@ -122,22 +123,34 @@ class Orchestrator:
             "message": "正在分析任务...",
         }
 
+        print(f"[Orchestrator] 开始分析任务: {message[:80]}...", flush=True)
         try:
             plan = await self._plan(message, working_directory)
-        except Exception:
+        except Exception as e:
+            print(f"[Orchestrator] 计划生成异常: {e}", flush=True)
             plan = {"analysis": "计划生成失败", "steps": []}
 
         steps = plan.get("steps", [])
+        print(f"[Orchestrator] 执行计划: {len(steps)} 个步骤, analysis={plan.get('analysis', 'N/A')}", flush=True)
 
         if not steps:
-            # 无有效计划：Orchestrator 自行简要回复
-            yield {
-                "type": "msg_chunk",
-                "message_id": message_id,
-                "delta": plan.get("analysis", "我需要更多信息来理解你的需求，能具体说说吗？"),
-                "agent_id": "agent_system",
-                "agent_name": "Orchestrator",
-            }
+            # 无有效计划：退化为单 Agent 模式，直接交给 Claude Code 处理
+            print(f"[Orchestrator] 计划为空，退化为单Agent模式", flush=True)
+            fallback_adapter = self.factory.get_adapter("claude_code")
+            async for chunk in fallback_adapter.chat_stream(
+                message=message,
+                system_prompt=SYSTEM_PROMPTS.get("claude_code", ""),
+                history=[],
+                working_directory=working_directory,
+            ):
+                if chunk.get("type") == "msg_chunk":
+                    yield {
+                        "type": "msg_chunk",
+                        "message_id": message_id,
+                        "delta": chunk.get("delta", ""),
+                        "agent_id": "agent_claude_code",
+                        "agent_name": "Claude Code",
+                    }
             yield {"type": "msg_end", "message_id": message_id}
             return
 
@@ -177,14 +190,15 @@ class Orchestrator:
                 }
                 continue
 
-            # 子 Agent 的 system prompt（简短版，任务 prompt 已自包含）
+            print(f"[Orchestrator] 步骤 {i+1}/{len(steps)}: 调度 {agent_name} → {task[:60]}...", flush=True)
+
+            # 子 Agent 使用完整 system prompt
             sub_prompt = SYSTEM_PROMPTS.get(agent_type, "")
-            # 截取前 200 字作为角色提示，避免与 task 内容重复
-            role_hint = sub_prompt.split("\n")[0] if sub_prompt else ""
+            had_error = False
 
             async for chunk in adapter.chat_stream(
                 message=task,
-                system_prompt=role_hint,
+                system_prompt=sub_prompt,
                 history=[],
                 working_directory=working_directory,
             ):
@@ -198,13 +212,39 @@ class Orchestrator:
                         "agent_name": agent_name,
                     }
                 elif chunk_type == "error":
-                    yield {
-                        "type": "msg_chunk",
-                        "message_id": message_id,
-                        "delta": f"\n\n> ⚠️ {agent_name} 出错: {chunk.get('message', '未知错误')}\n\n",
-                        "agent_id": "agent_system",
-                        "agent_name": "Orchestrator",
-                    }
+                    had_error = True
+
+            # 降级：子 Agent 失败且非 Claude Code → 自动用 Claude 重试
+            if had_error and agent_type != "claude_code":
+                print(f"[Orchestrator] {agent_name} 失败，降级到 Claude Code", flush=True)
+                yield {
+                    "type": "agent_switch",
+                    "agent_id": "agent_claude_code",
+                    "agent_name": "Claude Code (降级)",
+                }
+                fallback = self.factory.get_adapter("claude_code")
+                async for chunk in fallback.chat_stream(
+                    message=task,
+                    system_prompt=SYSTEM_PROMPTS.get("claude_code", ""),
+                    history=[],
+                    working_directory=working_directory,
+                ):
+                    if chunk.get("type") == "msg_chunk":
+                        yield {
+                            "type": "msg_chunk",
+                            "message_id": message_id,
+                            "delta": chunk.get("delta", ""),
+                            "agent_id": "agent_claude_code",
+                            "agent_name": "Claude Code (降级)",
+                        }
+            elif had_error:
+                yield {
+                    "type": "msg_chunk",
+                    "message_id": message_id,
+                    "delta": "\n\n> ⚠️ Claude Code 执行失败，请稍后重试。\n\n",
+                    "agent_id": "agent_system",
+                    "agent_name": "Orchestrator",
+                }
 
             # 步骤之间加分隔
             if not is_last:
@@ -216,4 +256,5 @@ class Orchestrator:
                     "agent_name": "Orchestrator",
                 }
 
+        print(f"[Orchestrator] 全部 {len(steps)} 个步骤执行完成", flush=True)
         yield {"type": "msg_end", "message_id": message_id}

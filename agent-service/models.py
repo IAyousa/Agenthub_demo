@@ -15,10 +15,10 @@ class AgentChatRequest(BaseModel):
     POST /api/agent/chat 的请求模型，严格对齐 API 契约文档第 4.2 节。
     字段使用 camelCase 命名，与 Java 后端 AgentGatewayService 序列化格式一致。
     """
-    agentType: str = Field(
-        default="claude_code",
-        description="Agent 类型，可选值：claude_code / codex / custom",
-        examples=["claude_code"],
+    agentType: Optional[str] = Field(
+        default=None,
+        description="Agent 类型：claude_code / codex / custom；null 时走 Orchestrator 多 Agent 编排",
+        examples=["claude_code", None],
     )
     systemPrompt: str = Field(
         default="",
