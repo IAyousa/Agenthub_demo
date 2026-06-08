@@ -28,12 +28,7 @@ const filteredList = computed(() => {
 })
 
 const handleSelect = (id: string) => {
-  const conv = conversationList.value.find(c => c.id === id)
-  if (conv && conv.type === 'group') {
-    router.push('/office/' + id)
-  } else {
-    router.push('/chat/' + id)
-  }
+  router.push('/chat/' + id)
 }
 
 const handleDelete = (id: string) => {

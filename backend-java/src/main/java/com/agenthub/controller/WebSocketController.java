@@ -47,18 +47,28 @@ public class WebSocketController {
         log.info("User message saved: id={}", userMessage.getId());
 
         // Step 2: Resolve agent from request (fallback to claude_code)
-        String agentId = request.getAgentId();
-        if (agentId == null || agentId.isBlank()) {
-            agentId = "agent_claude_001";
-        }
-        Agent agent = agentRepository.findById(agentId).orElse(null);
-        String agentType = agent != null ? agent.getType() : "claude_code";
-        String systemPrompt = (agent != null && agent.getSystemPrompt() != null)
-                ? agent.getSystemPrompt() : "";
-        if (agentType == null) {
-            messagingTemplate.convertAndSend(topic, errorChunk(
-                    "Agent type could not be determined for this conversation."));
-            return;
+        // Group conversations → Orchestrator multi-agent dispatch
+        Conversation conv = conversationRepository.findById(conversationId).orElse(null);
+        boolean isGroup = conv != null && "group".equals(conv.getType());
+
+        final String agentType;
+        final String systemPrompt;
+        final Agent agent;
+
+        if (isGroup) {
+            // 群聊模式：不指定具体 Agent，由 Python Orchestrator 动态编排
+            agentType = null;
+            systemPrompt = "";
+            agent = null;
+        } else {
+            String agentId = request.getAgentId();
+            if (agentId == null || agentId.isBlank()) {
+                agentId = "agent_claude_001";
+            }
+            agent = agentRepository.findById(agentId).orElse(null);
+            agentType = agent != null ? agent.getType() : "claude_code";
+            systemPrompt = (agent != null && agent.getSystemPrompt() != null)
+                    ? agent.getSystemPrompt() : "";
         }
 
         // Step 3: Send current message only — CLI manages its own conversation memory via --continue
@@ -80,7 +90,7 @@ public class WebSocketController {
                     chunk.put("type", "chunk");
                     chunk.put("content", token.getToken());
                     chunk.put("isComplete", false);
-                    chunk.put("agentId", "agent_" + agentType);
+                    chunk.put("agentId", agentType != null ? "agent_" + agentType : "agent_orchestrator");
                     chunk.put("agentName", token.getAgentName() != null
                             ? token.getAgentName()
                             : (agent != null ? agent.getName() : getAgentName(agentType)));
@@ -158,6 +168,7 @@ public class WebSocketController {
     // Full routing (direct → session agent, group → orchestrator) is P2 scope.
 
     private String getAgentName(String agentType) {
+        if (agentType == null) return "Orchestrator";
         return switch (agentType) {
             case "claude_code" -> "Claude Code";
             case "codex" -> "Codex";
