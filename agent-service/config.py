@@ -46,6 +46,7 @@ class Settings(BaseSettings):
     # 环境要求：需要设置 OPENAI_API_KEY 环境变量
     CODEX_CLI_COMMAND: str = "codex"                 # Codex CLI 命令名或绝对路径
     CODEX_CLI_ARGS: List[str] = []                   # 额外的 CLI 参数（如 ["--model", "gpt-5"]）
+    CODEX_SKIP_GIT_CHECK: bool = True                # 非 Git 目录下跳过仓库检查（--skip-git-repo-check），AgentHub workspace 通常不在 Git 仓库中
 
     # ========== Agent 调用参数 ==========
     # 控制 Agent 调用的行为
