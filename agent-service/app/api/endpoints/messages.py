@@ -45,11 +45,15 @@ AGENT_DISPLAY_NAMES = {
     "custom": "Custom Agent",
 }
 
-# 会话跟踪字典：记录每个 (conversationId, agentType) 的首轮状态
-# 格式: { "conv_id:agent_type": {"is_first": False} }
+# 会话跟踪字典：记录每个 (conversationId, agentType) 的状态
+# 格式: {
+#     "conv_id:agent_type": {
+#         "is_first": False,
+#         "cli_session_id": "a1b2c3d4-..."  # Codex session UUID（Claude 不需要）
+#     }
+# }
 # 进程内存状态，服务重启后丢失。
 # 安全降级：重启后首次调用会重新注入 system_prompt（不影响正确性）。
-# Claude 适配器另有文件系统回退检查（.claude/sessions/ 目录），可精确修正。
 _session_tracker: dict = {}
 
 _SSE_EXAMPLE = (
@@ -198,12 +202,18 @@ def _stream_response(adapter, agent_type, agent_name, agent_id, context, system_
         message_id = None
         full_text: list[str] = []
 
+        # 获取已存储的 CLI session ID（用于 Codex 等需要显式 session ID 的 CLI）
+        existing_session_id = None
+        if track_key and track_key in _session_tracker:
+            existing_session_id = _session_tracker[track_key].get("cli_session_id")
+
         async for chunk in adapter.chat_stream(
             message=context,
             system_prompt=system_prompt,
             history=[],
             working_directory=working_directory,
             is_first_message=is_first_message,
+            session_id=existing_session_id,
         ):
             chunk_type = chunk.get("type")
 
@@ -221,9 +231,21 @@ def _stream_response(adapter, agent_type, agent_name, agent_id, context, system_
                 }
                 yield f"data: {json.dumps(sse_data, ensure_ascii=False)}\n\n"
 
+            elif chunk_type == "session_created":
+                # Codex 首轮执行后回传新 session UUID，存入 tracker 供后续恢复
+                new_session_id = chunk.get("session_id")
+                if track_key and new_session_id:
+                    _session_tracker[track_key] = {
+                        "is_first": False,
+                        "cli_session_id": new_session_id,
+                    }
+                elif track_key:
+                    # session ID 解析失败，仅标记非首轮（下次全新执行）
+                    _session_tracker[track_key] = {"is_first": False}
+
             elif chunk_type == "msg_end":
-                # Mark session as started so subsequent messages use --continue
-                if track_key and is_first_message:
+                # Claude：标记会话非首轮，后续消息使用 --continue
+                if track_key and is_first_message and track_key not in _session_tracker:
                     _session_tracker[track_key] = {"is_first": False}
 
                 sse_data = {
@@ -266,18 +288,33 @@ async def _non_stream_response(adapter, context, system_prompt, working_director
     full_content = ""
     message_id = ""
 
+    # 获取已存储的 CLI session ID
+    existing_session_id = None
+    if track_key and track_key in _session_tracker:
+        existing_session_id = _session_tracker[track_key].get("cli_session_id")
+
     async for chunk in adapter.chat_stream(
         message=context,
         system_prompt=system_prompt,
         history=[],
         working_directory=working_directory,
         is_first_message=is_first_message,
+        session_id=existing_session_id,
     ):
         chunk_type = chunk.get("type")
         if chunk_type == "msg_start":
             message_id = chunk.get("message_id", "")
         elif chunk_type == "msg_chunk":
             full_content += chunk.get("delta", "")
+        elif chunk_type == "session_created":
+            new_session_id = chunk.get("session_id")
+            if track_key and new_session_id:
+                _session_tracker[track_key] = {
+                    "is_first": False,
+                    "cli_session_id": new_session_id,
+                }
+            elif track_key:
+                _session_tracker[track_key] = {"is_first": False}
         elif chunk_type == "error":
             return _error_json(
                 502, "AGENT_ERROR",
@@ -286,7 +323,7 @@ async def _non_stream_response(adapter, context, system_prompt, working_director
             )
 
     # Mark session as started so subsequent messages use --continue
-    if track_key and is_first_message:
+    if track_key and is_first_message and track_key not in _session_tracker:
         _session_tracker[track_key] = {"is_first": False}
 
     # Detect code blocks and upload artifacts

@@ -12,6 +12,8 @@ AgentHub Agent Service — 产物检测与上传
         → Java 存文件 + WebSocket push preview_card 到前端
 """
 
+from __future__ import annotations
+
 import re
 import httpx
 
