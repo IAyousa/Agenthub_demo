@@ -1,7 +1,7 @@
 # AgentHub 技术框架文档 — API 契约定义与通信协议规范
 
-> **版本**: v1.0
-> **最后更新**: 2026-05-25
+> **版本**: v1.1
+> **最后更新**: 2026-06-09
 
 ---
 
@@ -29,7 +29,7 @@
 | 成功状态码 | `200 OK` / `201 Created` |
 | 错误状态码 | 可能返回：`400 Bad Request` / `404 Not Found` / `500 Internal Server Error` |
 | 字段命名 | `camelCase`（驼峰） |
-| 认证方式 | MVP 阶段不做认证，P1 阶段加 JWT |
+| 认证方式 | JWT Bearer Token（`Authorization: Bearer <token>`），`/auth/**` + `/ws-chat/**` + `/h2-console/**` 放行 |
 
 ### 2.2 会话管理
 
@@ -255,7 +255,96 @@ PUT /conversations/{conversationId}/messages/{messageId}/pin
 ```
 ##### 安全说明：
 后端需校验 `messageId` 对应的消息是否归属于 `conversationId` 对应的会话，防止跨会话越权操作。
-### 2.3 Agent 管理
+
+### 2.3 JWT 认证
+
+> P1-B1 已实现。所有受保护接口需在请求头携带 `Authorization: Bearer <token>`，`/auth/**` 放行。
+
+#### 2.3.1 用户注册
+
+```http
+POST /auth/register
+```
+
+##### 请求体：
+```json
+{
+  "username": "testuser",
+  "password": "test123456"
+}
+```
+
+##### 字段说明：
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| username | string | 是 | 用户名，3-50 字符 |
+| password | string | 是 | 密码，6-100 字符 |
+
+##### 成功响应（201）：
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiJ9...",
+  "userId": "a1b2c3d4-...",
+  "username": "testuser"
+}
+```
+
+##### 错误响应（400）：
+```json
+{
+  "error": "VALIDATION_ERROR",
+  "message": "用户名已存在"
+}
+```
+
+#### 2.3.2 用户登录
+
+```http
+POST /auth/login
+```
+
+##### 请求体：
+```json
+{
+  "username": "testuser",
+  "password": "test123456"
+}
+```
+
+##### 成功响应（200）：
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiJ9...",
+  "userId": "a1b2c3d4-...",
+  "username": "testuser"
+}
+```
+
+##### 错误响应（400）：
+```json
+{
+  "error": "VALIDATION_ERROR",
+  "message": "用户名或密码错误"
+}
+```
+
+##### 认证失败响应（401）：
+```json
+{
+  "error": "UNAUTHORIZED",
+  "message": "请先登录获取 Token: POST /auth/login"
+}
+```
+
+##### JWT Token 说明：
+| 属性 | 值 |
+|------|----|
+| 签名算法 | HS256 |
+| 有效期 | 24 小时（86400000 ms） |
+| 使用方式 | `Authorization: Bearer <token>` |
+| Secret 配置 | `${JWT_SECRET}` 环境变量（开发默认值见 `application-secret.yml.example`） |
+
+### 2.4 Agent 管理
 #### 2.3.1 获取可用 Agent 列表
 ```http
 GET /agents
@@ -324,7 +413,7 @@ GET /agents/{id}
   "createdAt": "2026-05-20T08:00:00"
 }
 ```
-### 2.4 产物管理
+### 2.5 产物管理
 #### 2.4.1 上传产物
 ```http
 POST /artifacts/upload
@@ -542,7 +631,9 @@ POST /api/agent/chat
 }
 ```
 
-&gt; **重要 P1 修正说明**：与架构评审问题清单 P1 对齐，将原裸字符串 `context` 字段替换为结构化 `messages` 数组，与 Claude API / OpenAI API 消息格式天然兼容，Python 端无需二次解析。彻底避免了两侧格式不一致导致 Agent"忘记上文"的集成故障。
+&gt; **重要 P1 修正说明**：与架构评审问题清单 P1 对齐，将原裸字符串 `context` 字段替换为结构化 `messages` 数组，与 Claude API / OpenAI API 消息格式天然兼容，Python 端无需二次解析。
+
+&gt; ⚠️ **代码现状 (v1.1)**：当前实际代码仍使用 `context` 字符串字段（`messages` 数组为文档规划，尚未在代码中实现）。Java `WebSocketController` 仅传当前消息文本，CLI 通过 `--continue`/`resume --last` 自行管理上下文。
 
 #### 请求字段说明：
 

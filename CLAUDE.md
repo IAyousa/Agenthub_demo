@@ -21,7 +21,7 @@ Vue 3 Frontend (localhost:5173)
 - **Frontend**: Vue 3.5 + TypeScript + Pinia + Vue Router 4 + Tailwind CSS 4 + Vite 8
 - **Backend**: Spring Boot 3.2.5 + Java 17 + H2 (file mode, sole data source) + JPA + STOMP/WebSocket
 - **Agent Service**: FastAPI 0.109 + Python 3.11, stateless gateway, invokes local CLI tools via asyncio subprocess, no database access. Tracks session state via in-memory `_session_tracker` (per conversationId+agentType).
-- **Agent Execution**: Local CLI — `claude -p "prompt"` / `claude --continue -p "prompt"` (native session memory) / `codex exec "prompt"`, stdout streaming. Claude Code uses `--continue` to restore session context; Codex `exec resume` planned for Phase 2.
+- **Agent Execution**: Local CLI — `claude -p "prompt"` / `claude --continue -p "prompt"` (native session memory) / `codex exec "prompt"` / `codex exec resume --last "prompt"`, stdout streaming. Claude Code uses `--continue` to restore session context; Codex uses `exec resume --last` + workspace isolation for session persistence.
 - **Communication**: STOMP over WebSocket (frontend↔backend), HTTP+SSE (backend↔agent)
 
 ## Project Structure (Actual Code)
@@ -62,72 +62,78 @@ frontend/                          # Vue 3 Frontend — ~90% complete
 ├── vite.config.ts                 # Vue + @tailwindcss/vite plugins only (no proxy, no @ alias)
 └── index.html
 
-backend-java/                      # Spring Boot — ~55% complete (data + service + agent/artifact REST done)
+backend-java/                      # Spring Boot — ~75% complete (data + service + REST + WebSocket + artifact + JWT auth all done)
 ├── src/main/java/com/agenthub/
 │   ├── AgenthubApplication.java  # @SpringBootApplication entry
 │   ├── config/
 │   │   ├── WebSocketConfig.java   # STOMP: /app prefix, /topic broker, /ws-chat + SockJS, CORS origins from yml
 │   │   ├── CorsConfig.java        # CorsFilter Bean (Servlet Filter layer, reads cors.allowed-origins)
 │   │   ├── ArtifactConfig.java    # Static resource mapping: /artifacts/** → file:./artifacts/
-│   │   └── SecurityConfig.java    # Comment placeholder (Spring Security + JWT reserved for P1)
+│   │   └── SecurityConfig.java    # Spring Security + JWT: stateless session, /auth/** + /ws-chat/** + /h2-console/** permitAll, custom 401/403 JSON response
 │   ├── controller/
-│   │   ├── WebSocketController.java # @MessageMapping("/chat.send") — handler filled: save→route→SSE→STOMP push (context assembly removed, CLI manages memory via --continue)
-│   │   ├── AgentController.java   # CRUD: GET/POST /agents, GET /agents/{id}. Type validation, avatarUrl, isBuiltin detection
+│   │   ├── WebSocketController.java # @MessageMapping("/chat.send") — handler filled: save→route→SSE→STOMP push, group→Orchestrator routing
+│   │   ├── AgentController.java   # CRUD: GET/POST /agents, GET /agents/{id}
 │   │   ├── ArtifactController.java # CRUD + POST /internal/artifacts (Python→Java upload), WebSocket push preview_card
+│   │   ├── AuthController.java    # POST /auth/register + /auth/login, BCrypt password, JWT token response
 │   │   ├── ConversationController.java # CRUD: 7 REST endpoints for conversation + agent management
-│   │   └── MessageController.java  # Paginated message history + pin/unpin with conversation-scoped validation
-│   ├── dto/
-│   │   ├── SendMessageRequest.java # conversationId, content, agentId (Lombok @Data)
-│   │   ├── MessageChunk.java      # content, isComplete, agentId, agentName, messageType, messageId, type
-│   │   ├── ArtifactDTO.java       # id, filename, fileSize, conversationId, messageId, createdAt
-│   │   ├── ConversationDTO.java   # id, title, type, agentIds, createdAt, updatedAt
-│   │   ├── InternalArtifactRequest.java # conversationId, messageId, filename, content, contentType — Python→Java artifact upload
-│   │   └── PinRequest.java        # pinned: boolean
-│   ├── model/                     # User, Conversation, Message, Agent, Artifact JPA entities. @PrePersist UUID + timestamps. Message has 2 DB indexes.
-│   ├── repository/                # 5 JPA data access interfaces (User, Conversation, Message, Agent, Artifact)
+│   │   └── MessageController.java  # Paginated message history + pin/unpin
+│   ├── security/
+│   │   ├── JwtAuthenticationFilter.java # OncePerRequestFilter: Bearer token extraction + validation
+│   │   └── JwtTokenProvider.java   # jjwt 0.12.5: HS256 generate/validate, key from ${JWT_SECRET} env var
+│   ├── dto/                        # SendMessageRequest, MessageChunk, ArtifactDTO, etc. (6 DTOs)
+│   ├── model/                     # User, Conversation, Message, Agent, Artifact JPA entities
+│   ├── repository/                # 5 JPA data access interfaces
 │   └── service/
-│       ├── AgentGatewayService.java # FULL: WebClient SSE parser, AgentToken callback (token/finish/error), aligned to /api/agent/chat
-│       ├── ArtifactService.java   # Upload(MultipartFile+text content)/query/download/delete, orphan recovery, path traversal protection
-│       ├── ConversationService.java # FULL: CRUD, agent add/remove, archive, user-scoped queries
-│       ├── MessageService.java    # FULL: send, paginated history, pin/unpin, context assembly (buildConversationContext retained for future export; no longer called by WebSocketController)
+│       ├── AgentGatewayService.java # WebClient SSE parser, AgentToken callback, null agentType passthrough
+│       ├── ArtifactService.java   # Upload/query/download/delete, saveFromContent for text-based artifacts
+│       ├── ConversationService.java # CRUD, agent add/remove, archive, user-scoped queries
+│       ├── MessageService.java    # Send, paginated history, pin/unpin
 │       └── WebSocketSessionManager.java # STOMP session management via SimpMessagingTemplate
 ├── src/main/resources/
-│   ├── application.yml            # H2 file-based DB (AUTO_SERVER=TRUE), JPA ddl-auto update, CORS, port 8080
-│   └── data.sql                   # Seed data: Claude Code + Codex agents (H2 MERGE INTO syntax)
-└── pom.xml                        # SB 3.2.5: web, websocket, jpa, webflux, postgresql, h2, lombok
+│   ├── application.yml            # H2 default + spring.config.import optional:application-secret.yml + JWT ${JWT_SECRET:default}
+│   ├── application-pg.yml         # PostgreSQL Profile (optional, -Dspring.profiles.active=pg)
+│   ├── application-secret.yml.example # 本地敏感配置模板（复制为 application-secret.yml 使用）
+│   ├── data.sql                   # H2 seed data: Claude Code + Codex agents (MERGE INTO)
+│   └── data-pg.sql                # PostgreSQL seed data (INSERT ON CONFLICT)
+└── pom.xml                        # SB 3.2.5: web, websocket, jpa, webflux, postgresql, h2, lombok, security, jjwt 0.12.5
 
-agent-service/                     # FastAPI — ~80% complete, stateless gateway, no DB access
-├── main.py                        # FULL: FastAPI app, CORS, /api/agent router, global error handlers (400/404/500), /health with uptime
-├── models.py                      # FULL: AgentChatRequest (incl. availableAgents P2 + conversationId), AgentChatResponse, HealthResponse, ErrorResponse
-├── config.py                      # FULL: pydantic-settings + AGENT_REGISTRY fallback cache (4 agents) + AGENT_WORKSPACE_ROOT, CLI commands, timeout 300s
+agent-service/                     # FastAPI — ~92% complete, stateless gateway, no DB access
+├── main.py                        # FULL: FastAPI app, CORS, /api/agent router, global error handlers, /health. Windows: default ProactorEventLoop
+├── models.py                      # FULL: AgentChatRequest (agentType Optional[str] for Orchestrator), AgentChatResponse, HealthResponse, ErrorResponse
+├── config.py                      # FULL: pydantic-settings + AGENT_REGISTRY + CODEX_SKIP_GIT_CHECK + AGENT_WORKSPACE_ROOT, CLI commands, timeout 300s
+├── orchestrator.py                # FULL: LLM驱动的多Agent编排器 — Claude分析意图→JSON计划→串行调度→三层降级
 ├── adapters/
-│   ├── base_adapter.py            # FULL: strip_ansi(), build_prompt(), chat_stream() abstract, chunk contract
+│   ├── base_adapter.py            # FULL: strip_ansi(), build_prompt(), chat_stream() abstract, session_created event contract
 │   ├── adapter_factory.py         # FULL: ADAPTER_MAP {claude_code, codex, custom} → ValueError on unknown type
-│   ├── claude_adapter.py          # FULL: claude -p (1st) / claude --continue -p (subsequent), cwd=workspace (session isolation + native memory)
-│   └── codex_adapter.py           # FULL: codex exec (Phase 2: exec resume planned)
+│   ├── claude_adapter.py          # FULL: claude -p (1st) / claude --continue -p (subsequent), cwd=workspace, is_first_message tracking
+│   └── codex_adapter.py           # FULL: codex exec (1st, session_created) / codex exec resume --last (subsequent), session ID extraction, stderr diagnostics
 ├── prompts/
-│   └── system_prompts.py          # FULL: 8 role prompts (claude_code/codex/orchestrator/custom + coder/designer/reviewer/architect fallback)
+│   └── system_prompts.py          # FULL: 8 role prompts, positive guidance (直接输出代码), no "permission" wording
 ├── app/
 │   ├── api/endpoints/
-│   │   ├── messages.py            # FULL: POST /chat, _session_tracker (is_first_message), auto-lookup systemPrompt, artifact detection
-│   │   └── agents.py              # FULL: get_agents()/get_agent()/agent_exists() utility for AGENT_REGISTRY lookups
+│   │   ├── messages.py            # FULL: POST /chat, _session_tracker (is_first + cli_session_id), Orchestrator routing, session_created handling
+│   │   └── agents.py              # FULL: get_agents()/get_agent()/agent_exists() utility
 │   └── utils/
-│       └── artifact_uploader.py   # NEW: detect_code_blocks() regex → httpx POST /internal/artifacts per code block
+│       └── artifact_uploader.py   # FULL: detect_code_blocks() regex → httpx POST /internal/artifacts per code block
+├── .env.example                   # 环境变量模板（ANTHROPIC_API_KEY, OPENAI_API_KEY）
+├── .gitignore                     # 保护 .env 不被提交
 ├── agent_workspaces/              # Session-isolated Agent working directories (gitignored)
-├── requirements.txt               # fastapi, uvicorn, httpx, pydantic, pydantic-settings, sse-starlette, langchain, langgraph
-└── .env                           # ANTHROPIC_API_KEY, OPENAI_API_KEY (gitignored)
+└── requirements.txt               # fastapi, uvicorn, httpx, pydantic, pydantic-settings
 
 > **Agent metadata**: Java DB is source of truth, Python AGENT_REGISTRY is fallback cache. Java sends systemPrompt from DB + conversationId + workingDirectory. P1: availableAgents[] in request → Redis shared cache.
 > **Artifact pipeline**: Agent stdout → Python artifact_uploader regex code block detection → POST /internal/artifacts → Java saveFromContent() + WebSocket preview_card → frontend ArtifactSandbox iframe.
-> **Not yet implemented**: `http_adapter.py` (D13), `orchestrator.py` (P2), Codex `exec resume` (Phase 2).
+> **Not yet implemented**: `http_adapter.py` (D13).
 
-docs/                              # 6 design docs (v1.0 + CLI memory design)
+docs/                              # 设计文档 + 规范
 ├── 项目概述与技术栈总览.md
 ├── 架构拓扑图与项目目录结构.md
 ├── 数据模型设计.md
 ├── API 契约定义与通信协议规范.md
-├── 基础设施配置.md                 # Updated: H2 config + quick-start checklist + MVP annotations
-└── CLI原生记忆设计方案.md          # v3.1: Claude Code --continue integration design + implementation status
+├── 基础设施配置.md                 # Updated: H2/PG dual DB + JWT + quick-start checklist + config templates
+├── CLI原生记忆设计方案.md          # v3.1: Claude Code --continue + Codex exec resume integrated
+├── 团队代码合并规范.md             # Commit规范 + PR模板 + Code Review流程
+└── 开发记录模板.md
+docker-compose.yml                  # PostgreSQL 15-alpine 本地开发容器
 ```
 
 ## Current State Summary
@@ -148,48 +154,47 @@ docs/                              # 6 design docs (v1.0 + CLI memory design)
 - **Artifact preview pipeline complete**: Agent code → Python detection → /internal/artifacts → preview_card → ArtifactSandbox iframe
 - **Pending**: agent settings panel (conversation-scoped agent configuration)
 
-### Backend Java — ~72% (data + service + REST + WebSocket + artifact pipeline all done)
+### Backend Java — ~75% (data + service + REST + WebSocket + artifact + JWT auth + PG Profile all done)
 - Spring Boot compiles and starts on port 8080
-- **Config layer done**: WebSocketConfig (STOMP + SockJS at `/ws-chat`), CorsConfig (Servlet Filter), ArtifactConfig (static resource mapping), SecurityConfig (placeholder, P1)
+- **Config layer done**: WebSocketConfig, CorsConfig, ArtifactConfig, SecurityConfig (JWT stateless + custom 401/403 JSON)
+- **Security layer done**: AuthController (/auth/register + /auth/login), JwtAuthenticationFilter, JwtTokenProvider (jjwt 0.12.5, ${JWT_SECRET})
 - **Data layer done**: 5 JPA entities + 5 Repository interfaces
-- `data.sql` seeds Claude Code + Codex agents (H2 `MERGE INTO` syntax)
-- **Service layer done**: ConversationService, MessageService (context assembly method retained but no longer called by controller), AgentGatewayService, ArtifactService (saveFromContent for text-based artifacts), WebSocketSessionManager
-- **REST controllers done**: 5 controllers — Agent, Artifact (incl. POST /internal/artifacts + preview_card push), Conversation (7 endpoints), Message (+ WebSocketController)
-- **Artifact pipeline complete**: Python → POST /internal/artifacts → ArtifactService.saveFromContent() → WebSocket push preview_card → frontend iframe preview
-- **Agent workspace isolation**: Java passes `./agent_workspaces/{conversationId}` to Python, Agent CLI runs in session-isolated directory
-- **CLI native memory**: WebSocketController no longer assembles conversation history; sends only current message. Claude Code uses `--continue` for session context restoration
-- AgentGatewayService SSE parser: split("\n") + compatible with/without "data:" prefix
-- H2 file-based DB, Java-exclusive (Python is stateless gateway, no DB access)
-- **Agent routing**: WebSocketController reads request.agentId, routes to correct agent adapter
-- **Error handling**: friendlyErrorMessage() maps technical errors to user-friendly Chinese messages
-- **Pending**: end-to-end user auth (P1)
-
-### Agent Service — ~88% (adapters + prompts + registry + session tracking + artifact detection all done)
+- `data.sql` (H2 `MERGE INTO`), `data-pg.sql` (PostgreSQL `INSERT ON CONFLICT`)
+- **Service layer done**: ConversationService, MessageService, AgentGatewayService (null→Orchestrator), ArtifactService, WebSocketSessionManager
+- **REST controllers done**: 6 controllers — Agent, Artifact, Auth, Conversation, Message, WebSocket
+- **Dual database**: H2 default (zero-dependency), PostgreSQL via `-Dspring.profiles.active=pg`
+- **Config separation**: `${VAR:default}` pattern, `application-secret.yml.example`, `application-pg.yml` profile
+- **Agent routing**: group→agentType=null→Orchestrator, direct→agentId from DB
+- **Pending**: `http_adapter.py` (D13)
+### Agent Service — ~92% (adapters + prompts + registry + session tracking + orchestrator + artifact detection all done)
 - FastAPI starts, single router `/api/agent` with `POST /chat`
 - **ClaudeAdapter**: 1st message: `claude -p "{system_prompt}\n\n{msg}"`; subsequent: `claude --continue -p "{msg}"`. `is_first_message` via kwargs. cwd=session workspace
-- **CodexAdapter**: `codex exec "prompt"` (Phase 2: `exec resume` planned). Receives `is_first_message` via kwargs
-- **Session tracking**: `messages.py` maintains `_session_tracker: dict` keyed by `{conversationId}:{agentType}`, marks `is_first=False` on `msg_end`. In-memory (restart-safe: gracefully degrades, re-injects system_prompt once)
-- **System prompts**: 8 role templates, auto-lookup by agentType. All prompts explicitly state text-only mode (no file writing)
+- **CodexAdapter**: 1st message: `codex exec "{system_prompt}\n\n{msg}"` → `session_created` event; subsequent: `codex exec resume --last "{msg}"`. Session ID extraction via regex from stdout+stderr. `CODEX_SKIP_GIT_CHECK` configurable
+- **Orchestrator**: LLM-driven multi-agent dispatcher — Claude Code analyzes intent → JSON execution plan → sequential sub-agent dispatch → streaming aggregate. Three-tier fallback: plan failure→single agent, sub-agent error→Claude retry, Claude error→friendly message
+- **Session tracking**: `messages.py` maintains `_session_tracker: dict` keyed by `{conversationId}:{agentType}`, stores `is_first` + `cli_session_id` (Codex session UUID). In-memory (restart-safe: gracefully degrades, re-injects system_prompt once)
+- **System prompts**: 8 role templates, auto-lookup by agentType. Positive guidance (直接输出完整代码), no "permission" wording
 - **AGENT_REGISTRY**: 4-agent fallback cache + agents.py utility module
 - **Artifact auto-detection**: artifact_uploader.py regex-extracts code blocks after agent completes → httpx POST /internal/artifacts
 - **Session workspace isolation**: `os.makedirs(./agent_workspaces/{conversationId})`, Agent CLI cwd=isolated directory
 - Stream: SSE, non-stream: JSON
 - `/health` endpoint, global error handlers (400/404/500)
-- **Windows fix**: `main.py` sets `WindowsSelectorEventLoopPolicy` for asyncio subprocess support
+- **Windows**: default `ProactorEventLoop` (supports `create_subprocess_exec`)
 - Friendly error messages: adapter errors mapped to user-friendly Chinese text in Java layer
 - **No database access** — receives pre-assembled `context` from Java, returns token stream
-- **Pending**: `http_adapter.py` (D13), `orchestrator.py` (P2), Codex `exec resume` (Phase 2)
+- **Pending**: `http_adapter.py` (D13)
 
 ### Doc-vs-Code Gaps
 - **Python is stateless gateway** — docs originally planned Python sharing H2 via JPype/jaydebeapi. Now pure CLI subprocess forwarding, zero DB access. Planned agents/conversations/artifacts CRUD endpoints were removed.
 - **Local CLI instead of cloud API** — docs `config.py` planned `CLAUDE_API_KEY`/`CODEX_API_KEY` for direct Anthropic/OpenAI HTTP calls. Now uses asyncio subprocess with local CLI; API keys read by CLI tools from system env, Agent Service never touches them.
 - **CLI native session memory** — Java no longer assembles conversation history via `buildContextString()`. Claude Code uses `--continue` for context restoration; Python `_session_tracker` manages is_first_message state.
-- **Docs planned but unimplemented**: `http_adapter.py` (D13), `orchestrator.py` (P2), Codex `exec resume` (Phase 2)
-- **H2 instead of PostgreSQL** — docs specify PostgreSQL datasource, actual MVP uses H2 file mode. P1 migration: change 5 lines in YAML + 2 SQL statements.
+- **Docs planned but unimplemented**: `http_adapter.py` (D13)
+- **H2 + PostgreSQL dual mode** — H2 default for zero-dependency dev, PG via `-Dspring.profiles.active=pg` with `docker-compose.yml`
+- **JWT auth implemented** — Spring Security + jjwt 0.12.5, `/auth/register` + `/auth/login`, stateless Bearer token
 - **Frontend is TypeScript, not JavaScript** — docs say `JavaScript ES2022+`, actual code is all `.ts` / `<script setup lang="ts">`
 - **WebSocket endpoint is `/ws-chat`** — docs API contract says `/ws`, actual code uses `/ws-chat`
 - **SendMessageRequest DTO** — actual code has `agentId` field, but API contract says frontend should NOT send `agentType`/`agentId` (Orchestrator handles scheduling). Needs alignment during implementation.
-- **No Redis/MinIO/auth** in MVP — reserved for P1
+- **No Redis/MinIO** in current phase — reserved for P2
+- **Config templates**: `.env.example` + `application-secret.yml.example` — copy & fill to use
 - **Vue Router 4** drives view switching (URL shareable)
 - **Monaco Editor** (Vite web worker loading) + **GSAP** animations
 - **dev branch** is the active development branch

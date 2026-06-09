@@ -1,82 +1,73 @@
-# Agenthub - 多 Agent 协作平台
+# AgentHub — 多 Agent 协作平台
 
-Agenthub 是一个仿微信 PC 端交互风格的多 Agent 协作平台。支持主 Agent (Orchestrator) 调度多个专业 Agent（如 Coder, Designer），并集成类似 Claude 的 Artifact 实时代码预览功能。
+AgentHub 是一个仿微信 PC 端交互风格的多 Agent 协作平台。用户可在 IM 聊天界面中与多个 AI Agent（Claude Code、Codex）协作编码，支持 Orchestrator 自动调度、实时流式回复、代码预览与 JWT 安全认证。
 
 ## 🌟 核心特性
 
-- **IM 风格布局**：经典三栏式设计，支持响应式移动端适配。
-- **双后端协作架构**：工程侧用 Java 处理业务逻辑与长连接，AI 侧用 Python 调度大模型。
-- **Artifact 预览**：聊天流内生成 HTML/JS/CSS 代码并实时全屏预览。
-- **Monaco Editor**：内置专业级代码编辑器，支持语法高亮与自适应布局。
-- **实时渲染沙箱**：基于 Iframe 的安全代码运行环境。
+- **IM 风格布局**：经典三栏式设计（会话列表 + 聊天窗口 + 代码预览）
+- **多 Agent 协作**：Orchestrator 自动分析任务 → 分派给 Claude Code / Codex → 流式返回
+- **Artifact 预览**：Agent 生成的 HTML/JS/CSS 代码自动检测并生成 iframe 实时预览
+- **Monaco Editor**：内嵌 VS Code 同款编辑器，支持语法高亮与自适应布局
+- **JWT 认证**：Spring Security + jjwt 无状态认证，开发环境零配置
+- **双数据库支持**：默认 H2 文件数据库（零依赖），可选 PostgreSQL Profile
 
 ---
 
-## 🚀 前端部署 (Frontend)
+## 🚀 快速启动
 
-前端基于 **Vue 3 + Vite + TypeScript + Tailwind CSS 4** 构建。
+### 前置条件
 
-### 1. 环境准备
-- [Node.js](https://nodejs.org/) (建议 v18.0.0 或更高版本)
-- [npm](https://www.npmjs.com/)
+| 依赖 | 版本 | 说明 |
+|------|------|------|
+| Node.js | ≥18 | 前端构建 |
+| JDK | 17+ | Java 后端 |
+| Maven | 3.8+ | Java 构建 |
+| Python | 3.11+ | Agent 服务 |
+| Claude Code CLI | 最新 | AI Agent（需 ANTHROPIC_API_KEY） |
+| Codex CLI | ≥0.137 | AI Agent（可选，需 OPENAI_API_KEY） |
 
-### 2. 安装依赖
+### 1. 配置模板
+
 ```bash
-cd frontend
-npm install
+# 复制配置模板（首次使用）
+cp agent-service/.env.example agent-service/.env
+cp backend-java/src/main/resources/application-secret.yml.example backend-java/src/main/resources/application-secret.yml
+# 编辑 .env 填入你的 API Key
 ```
 
-### 3. 开发环境运行
+### 2. 启动 Agent 服务（Python）
+
 ```bash
-npm run dev
+cd agent-service
+pip install -r requirements.txt
+uvicorn main:app --port 8000 --reload
+# API 文档: http://localhost:8000/docs
 ```
-访问 `http://localhost:5173` 进行预览。
 
----
+### 3. 启动后端服务（Java）
 
-## ☕ 后端主服务 (Backend-Java)
-
-基于 **Spring Boot 3.2.x + Java 17**，负责业务逻辑、WebSocket(STOMP) 与数据库持久化。
-
-### 1. 环境准备
-- [JDK 17+](https://adoptium.net/)
-- [Maven 3.8+](https://maven.apache.org/)
-- [PostgreSQL 15+](https://www.postgresql.org/)
-
-### 2. 运行服务
 ```bash
 cd backend-java
 mvn spring-boot:run
+# 默认运行在 http://localhost:8080
+# H2 控制台: http://localhost:8080/h2-console
 ```
-默认运行在 `http://localhost:8080`。
 
----
+### 4. 启动前端
 
-## 🤖 Agent 服务 (Agent-Service)
-
-基于 **FastAPI + Python 3.11+**，负责 LLM 适配与 Agent 调度逻辑。
-
-### 1. 环境准备
-- [Python 3.11+](https://www.python.org/)
-- 建议使用 `venv` 虚拟环境
-
-### 2. 安装依赖
 ```bash
-cd agent-service
-python -m venv venv
-# Windows 激活
-.\venv\Scripts\activate
-# Linux/macOS 激活
-source venv/bin/activate
-
-pip install -r requirements.txt
+cd frontend
+npm install
+npm run dev
+# 访问 http://localhost:5173
 ```
 
-### 3. 运行服务
+### PostgreSQL（可选）
+
 ```bash
-uvicorn main:app --reload --port 8000
+docker-compose up -d                                    # 启动 PostgreSQL
+mvn spring-boot:run -Dspring-boot.run.profiles=pg       # 切换到 PG
 ```
-API 文档访问 `http://localhost:8000/docs`。
 
 ---
 
@@ -84,22 +75,46 @@ API 文档访问 `http://localhost:8000/docs`。
 
 ```text
 agenthub/
-├── frontend/           # Vue 3 前端项目
+├── frontend/                 # Vue 3 前端项目
 │   ├── src/
-│   │   ├── components/ # 聊天、预览与通用组件
-│   │   ├── stores/     # Pinia 状态管理
-│   │   └── websocket/  # STOMP 客户端封装
-├── backend-java/       # Spring Boot 主服务 (工程中台)
-│   ├── src/main/java/  # WebSocket, Controller, Service, Model
-│   └── pom.xml         # Maven 配置
-├── agent-service/      # Python FastAPI 服务 (AI 适配层)
-│   ├── adapters/       # LLM 适配器 (Claude, etc.)
-│   ├── prompts/        # System Prompt 模板
-│   └── main.py         # FastAPI 入口
-└── docs/               # 技术框架与 API 规范文档
+│   │   ├── components/       # 聊天、预览与通用组件
+│   │   ├── stores/           # Pinia 状态管理
+│   │   └── websocket/        # STOMP 客户端封装
+├── backend-java/             # Spring Boot 主服务
+│   ├── src/main/java/        # WebSocket, Controller, Service, Security
+│   └── pom.xml               # Maven 配置
+├── agent-service/            # Python FastAPI Agent 服务
+│   ├── adapters/             # LLM 适配器 (Claude, Codex)
+│   ├── prompts/              # System Prompt 模板
+│   ├── orchestrator.py       # 多 Agent 任务编排器
+│   └── main.py               # FastAPI 入口
+├── docker-compose.yml        # PostgreSQL 本地开发容器
+├── docs/                     # 技术框架与 API 规范文档
+└── agent_collaboration/      # 开发过程记录
+```
+
+---
+
+## 🔐 JWT 认证
+
+```bash
+# 注册
+curl -X POST http://localhost:8080/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"username":"test","password":"test123456"}'
+
+# 登录（获取 Token）
+curl -X POST http://localhost:8080/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"test","password":"test123456"}'
+
+# 使用 Token 访问 API
+curl http://localhost:8080/agents \
+  -H "Authorization: Bearer <token>"
 ```
 
 ---
 
 ## 📝 开发规范
-请参考 [项目技术框架.md](file:///d:/HuaweiMoveData/Users/Yao/Desktop/Trae_project/项目技术框架.md) 与 [架构拓扑图与项目目录结构.md](file:///d:/HuaweiMoveData/Users/Yao/Desktop/Trae_project/架构拓扑图与项目目录结构.md) 进行协同开发。
+
+请参考 `docs/` 目录下的技术框架文档与 API 规范文档进行协同开发。

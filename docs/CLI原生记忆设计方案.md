@@ -13,9 +13,9 @@
 | 模块 | 状态 | 说明 |
 |------|:--:|------|
 | Claude Code `--continue` 集成 | ✅ **已完成** | Java 简化 + Python session tracker + `--continue` 分支，端到端验证通过 |
-| Codex `exec resume` 集成 | ⏳ 阶段 2 | `is_first_message` 参数已预留，适配器逻辑待改造 |
-| 多 Agent Orchestrator | ⏳ P2 | §8 设计保留，待 Orchestrator 整体开发时联动 |
-| Windows 兼容修复 | ✅ 已合并 | `main.py` 添加 `WindowsSelectorEventLoopPolicy` |
+| Codex `exec resume` 集成 | ✅ **已完成** | `codex exec resume --last` + `session_created` 事件 + `_session_tracker` 存储 cli_session_id |
+| 多 Agent Orchestrator | ✅ **已完成** | `orchestrator.py` LLM 驱动编排，三层降级，JSON 执行计划 |
+| Windows 兼容修复 | ✅ 已修复 | 删除 `WindowsSelectorEventLoopPolicy`（不支持 subprocess），使用默认 `ProactorEventLoop` |
 
 ### 实施中验证的关键事实
 
