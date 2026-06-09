@@ -57,6 +57,12 @@
 			<artifactId>spring-boot-starter-security</artifactId>
 		</dependency>
 
+			<!-- Redis（P2 Agent 元数据共享缓存） -->
+			<dependency>
+				<groupId>org.springframework.boot</groupId>
+				<artifactId>spring-boot-starter-data-redis</artifactId>
+			</dependency>
+
 		<!-- JWT -->
 		<dependency>
 			<groupId>io.jsonwebtoken</groupId>
