@@ -30,6 +30,13 @@
       <div class="cursor-pointer hover:text-white transition-all duration-300">
         <SettingsIcon :size="22" />
       </div>
+      <div
+        @click="handleLogout"
+        class="cursor-pointer hover:text-white transition-all duration-300"
+        title="登出"
+      >
+        <LogOutIcon :size="22" />
+      </div>
     </div>
   </div>
 </template>
@@ -41,11 +48,14 @@ import {
   MessageSquare as MessageSquareIcon,
   Building2 as Building2Icon,
   LayoutGrid as LayoutGridIcon,
-  Settings as SettingsIcon
+  Settings as SettingsIcon,
+  LogOut as LogOutIcon
 } from 'lucide-vue-next'
+import { useAuthStore } from '../../stores/auth'
 
 const route = useRoute()
 const router = useRouter()
+const auth = useAuthStore()
 
 const isChatActive = computed(() => route.name === 'chat')
 const isOfficeActive = computed(() => route.name === 'office')
@@ -56,5 +66,10 @@ const goChat = () => {
 
 const goOffice = () => {
   router.push('/office')
+}
+
+const handleLogout = async () => {
+  await auth.logout()
+  router.push('/login')
 }
 </script>

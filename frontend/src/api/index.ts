@@ -10,6 +10,11 @@ const apiClient = axios.create({
 
 apiClient.interceptors.request.use(
   (config) => {
+    // 注入 JWT Token（Auth Store 的 token 持久化在 localStorage）
+    const token = localStorage.getItem('agenthub_token')
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`
+    }
     return config
   },
   (error) => {
@@ -24,7 +29,14 @@ apiClient.interceptors.response.use(
   (error) => {
     if (error.response) {
       const { status, data } = error.response
-      if (status === 404) {
+      if (status === 401) {
+        // Token 过期或无效 → 清除登录态并跳转登录页
+        localStorage.removeItem('agenthub_token')
+        localStorage.removeItem('agenthub_user')
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login'
+        }
+      } else if (status === 404) {
         console.warn(`[API] 资源未找到: ${error.config?.url}`)
       } else if (status === 500) {
         console.error(`[API] 服务器错误: ${error.config?.url}`, data)
