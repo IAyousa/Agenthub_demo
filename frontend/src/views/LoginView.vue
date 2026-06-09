@@ -48,12 +48,12 @@ function toggleMode() {
 </script>
 
 <template>
-  <div class="h-screen w-screen flex items-center justify-center bg-gradient-to-br from-[#f8fafc] via-[#eef2ff] to-[#e0e7ff]">
+  <div class="h-screen w-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-indigo-50 to-indigo-100">
     <!-- 登录卡片 -->
     <div class="w-full max-w-md mx-4">
       <!-- Logo + 标题 -->
       <div class="text-center mb-8">
-        <div class="inline-flex w-14 h-14 bg-gradient-to-br from-[#6366f1] to-[#8b5cf6] rounded-2xl items-center justify-center shadow-lg shadow-indigo-500/25 mb-4">
+        <div class="inline-flex w-14 h-14 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-2xl items-center justify-center shadow-lg shadow-indigo-500/25 mb-4">
           <svg class="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
           </svg>
@@ -101,7 +101,7 @@ function toggleMode() {
           <button
             type="submit"
             :disabled="auth.loading"
-            class="w-full py-2.5 bg-gradient-to-r from-[#6366f1] to-[#8b5cf6] text-white rounded-lg font-medium text-sm hover:from-[#4f46e5] hover:to-[#7c3aed] transition-all duration-200 shadow-md shadow-indigo-500/20 disabled:opacity-60 disabled:cursor-not-allowed"
+            class="w-full py-2.5 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-lg font-medium text-sm hover:from-indigo-600 hover:to-purple-600 transition-all duration-200 shadow-md shadow-indigo-500/20 disabled:opacity-60 disabled:cursor-not-allowed"
           >
             <span v-if="!auth.loading">{{ isRegister ? '注册' : '登录' }}</span>
             <span v-else class="inline-flex items-center gap-2">

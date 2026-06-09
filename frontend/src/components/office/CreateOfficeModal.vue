@@ -157,16 +157,6 @@ const createOffice = async () => {
 </script>
 
 <style scoped>
-/* 主题色覆盖 */
-.from-indigo-600 { --tw-gradient-from: var(--accent-start) !important; }
-.to-purple-600 { --tw-gradient-to: var(--accent-end) !important; }
-.text-indigo-600 { color: color-mix(in srgb, var(--accent-start) 80%, #475569) !important; }
-.text-indigo-100 { color: color-mix(in srgb, var(--accent-start) 30%, white) !important; }
-.bg-indigo-50 { background-color: color-mix(in srgb, var(--accent-start) 10%, white) !important; }
-.border-indigo-600 { border-color: var(--accent-start) !important; }
-.accent-indigo-600 { accent-color: var(--accent-start) !important; }
-.shadow-indigo-500\/30 { --tw-shadow-color: color-mix(in srgb, var(--accent-start) 30%, transparent) !important; }
-
 .modal-fade-enter-active,
 .modal-fade-leave-active {
   transition: opacity 0.3s ease;

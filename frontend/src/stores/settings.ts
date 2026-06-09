@@ -81,7 +81,29 @@ function applyCssVars(colors: ThemeColors) {
   root.style.setProperty('--accent-start', colors.accentStart)
   root.style.setProperty('--accent-end', colors.accentEnd)
   root.style.setProperty('--accent-light', colors.accentLight)
+
+  // 滚动条滑块颜色（::-webkit-scrollbar 伪元素不支持 CSS 变量动态更新，需 JS 写入）
+  const accent = colors.accentStart
+  let styleEl = document.getElementById('scrollbar-theme') as HTMLStyleElement | null
+  if (!styleEl) {
+    styleEl = document.createElement('style')
+    styleEl.id = 'scrollbar-theme'
+    document.head.appendChild(styleEl)
+  }
+  styleEl.textContent = `
+    ::-webkit-scrollbar-thumb {
+      background: color-mix(in srgb, ${accent} 30%, #cbd5e1);
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: color-mix(in srgb, ${accent} 50%, #94a3b8);
+    }
+  `
 }
+
+// 模块加载时立即应用 CSS 变量，确保滚动条等全局样式在初始渲染前就绪
+const initialTheme = THEMES.find(t => t.id === loadStoredTheme()) || THEMES[0]
+applyCssVars(initialTheme.colors)
 
 export const useSettingsStore = defineStore('settings', () => {
   const currentThemeId = ref<string>(loadStoredTheme())
@@ -89,9 +111,6 @@ export const useSettingsStore = defineStore('settings', () => {
   const themes = computed(() => THEMES)
   const currentTheme = computed(() => THEMES.find(t => t.id === currentThemeId.value) || THEMES[0])
   const colors = computed(() => currentTheme.value.colors)
-
-  // 初始化时应用 CSS 变量
-  applyCssVars(currentTheme.value.colors)
 
   // 切换主题时持久化 + 应用
   watch(currentThemeId, (id) => {

@@ -122,18 +122,6 @@ const handleCreate = () => {
 </script>
 
 <style scoped>
-/* 主题色覆盖 */
-.from-indigo-600 { --tw-gradient-from: var(--accent-start) !important; }
-.to-purple-600 { --tw-gradient-to: var(--accent-end) !important; }
-.text-indigo-100 { color: color-mix(in srgb, var(--accent-start) 30%, white) !important; }
-.text-indigo-600 { color: color-mix(in srgb, var(--accent-start) 80%, #475569) !important; }
-.text-indigo-700 { color: color-mix(in srgb, var(--accent-start) 90%, #334155) !important; }
-.text-indigo-400 { color: color-mix(in srgb, var(--accent-start) 60%, #94a3b8) !important; }
-.bg-indigo-50 { background-color: color-mix(in srgb, var(--accent-start) 10%, white) !important; }
-.border-indigo-600 { border-color: var(--accent-start) !important; }
-.border-indigo-400 { border-color: color-mix(in srgb, var(--accent-start) 60%, #cbd5e1) !important; }
-.accent-indigo-600 { accent-color: var(--accent-start) !important; }
-
 .modal-fade-enter-active, .modal-fade-leave-active { transition: opacity 0.3s ease; }
 .modal-fade-enter-from, .modal-fade-leave-to { opacity: 0; }
 .animate-in { animation: slideIn 0.3s ease-out; }
