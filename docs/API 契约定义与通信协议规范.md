@@ -343,9 +343,31 @@ POST /auth/login
 | 有效期 | 24 小时（86400000 ms） |
 | 使用方式 | `Authorization: Bearer <token>` |
 | Secret 配置 | `${JWT_SECRET}` 环境变量（开发默认值见 `application-secret.yml.example`） |
+| 登出机制 | Redis Token 黑名单，TTL = Token 剩余有效期，即时失效 |
+
+#### 2.3.3 用户登出
+
+```http
+POST /auth/logout
+```
+
+##### 请求头：
+| 头 | 值 |
+|----|----|
+| Authorization | Bearer \<token\>（要作废的 Token） |
+
+##### 成功响应（200）：
+```json
+{
+  "message": "已登出"
+}
+```
+
+##### 实现原理：
+Token 被加入 Redis 黑名单（`blacklist:token:{jwt}`），TTL = Token 剩余有效期。后续任何请求携带该 Token 时，`JwtAuthenticationFilter` 检测到黑名单即返回 401。Redis 宕机时降级放过（不阻断正常请求）。
 
 ### 2.4 Agent 管理
-#### 2.3.1 获取可用 Agent 列表
+#### 2.4.1 获取可用 Agent 列表
 ```http
 GET /agents
 ```
@@ -372,7 +394,7 @@ GET /agents
   ]
 }
 ```
-#### 2.3.2 创建自定义 Agent
+#### 2.4.2 创建自定义 Agent
 ```http
 POST /agents
 ```
@@ -396,7 +418,7 @@ POST /agents
   "createdAt": "2026-05-25T11:00:00"
 }
 ```
-#### 2.3.3 获取 Agent 详情
+#### 2.4.3 获取 Agent 详情
 ```http
 GET /agents/{id}
 ```
