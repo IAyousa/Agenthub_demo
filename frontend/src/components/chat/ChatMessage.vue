@@ -46,7 +46,7 @@
               <span class="uppercase">{{ metadata?.language || 'html' }}</span>
             </div>
             <div class="w-full text-[13px] text-gray-600 font-mono line-clamp-3 opacity-80 bg-gradient-to-br from-gray-50 to-indigo-50 p-3 rounded-lg border border-gray-100 italic">
-              {{ content.substring(0, 200) }}...
+              {{ previewSnippet }}...
             </div>
           </div>
         </div>
@@ -130,6 +130,7 @@ import { useChatStore } from '../../stores/chat'
 
 const chatStore = useChatStore()
 const copied = ref(false)
+const loadedCode = ref('')
 
 const props = defineProps<{
   id: string
@@ -149,6 +150,24 @@ const renderedContent = computed(() => {
   return marked.parse(safeContent, { breaks: true }) as string
 })
 
+/** 预览卡片显示的代码片段（流式消息用 content，API 加载的用 fetched 内容） */
+const previewSnippet = computed(() => {
+  return (loadedCode.value || props.content).substring(0, 200)
+})
+
+// 挂载时加载 artifact 实际内容（API history 返回的 content 只是文件名）
+onMounted(() => {
+  if (props.type === 'artifact_preview' && props.metadata?.previewUrl) {
+    const token = localStorage.getItem('agenthub_token')
+    fetch('http://localhost:8080' + props.metadata.previewUrl, {
+      headers: token ? { Authorization: 'Bearer ' + token } : {},
+    })
+      .then(r => r.ok ? r.text() : null)
+      .then(code => { if (code) loadedCode.value = code })
+      .catch(() => {})
+  }
+})
+
 const handleArtifactClick = async () => {
   if (props.type !== 'artifact_preview') return
   let code = props.content
@@ -156,7 +175,10 @@ const handleArtifactClick = async () => {
   const previewUrl = props.metadata?.previewUrl
   if (previewUrl && (!code || code.includes('.html') || code.includes('.js') || code.includes('.css') || !code.includes('<'))) {
     try {
-      const res = await fetch(`http://localhost:8080${previewUrl}`)
+      const token = localStorage.getItem('agenthub_token')
+      const res = await fetch(`http://localhost:8080${previewUrl}`, {
+        headers: token ? { Authorization: 'Bearer ' + token } : {},
+      })
       if (res.ok) {
         code = await res.text()
       }
@@ -172,7 +194,8 @@ const handleArtifactClick = async () => {
 
 const copyContent = async () => {
   try {
-    await navigator.clipboard.writeText(props.content)
+    const text = props.type === 'artifact_preview' ? (loadedCode.value || props.content) : props.content
+    await navigator.clipboard.writeText(text)
     copied.value = true
     setTimeout(() => { copied.value = false }, 2000)
   } catch {
