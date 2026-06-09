@@ -90,7 +90,7 @@ class ClaudeAdapter(BaseAdapter):
             full_prompt = message
         else:
             if system_prompt:
-                full_prompt = f"{system_prompt}\n\n---\n\n{message}"
+                full_prompt = f"{message}\n\n---\n\n{system_prompt}"
             else:
                 full_prompt = message
 
