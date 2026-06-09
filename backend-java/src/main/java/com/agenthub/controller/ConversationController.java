@@ -9,6 +9,8 @@ import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.validation.BindException;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -69,7 +71,7 @@ public class ConversationController {
     @GetMapping
     public ResponseEntity<Map<String, Object>> list(
             @RequestParam(required = false, defaultValue = "false") Boolean archived) {
-        String currentUserId = "system";
+        String currentUserId = getCurrentUserId();
         List<Conversation> conversations = archived
                 ? conversationService.getUserArchivedConversations(currentUserId)
                 : conversationService.getUserConversations(currentUserId);
@@ -96,7 +98,7 @@ public class ConversationController {
                 ? request.getAgentIds()
                 : Collections.singletonList("agent_claude_001");
         Conversation conversation = conversationService.createConversation(
-                request.getTitle(), request.getType(), "system", agentIds);
+                request.getTitle(), request.getType(), getCurrentUserId(), agentIds);
 
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("id", conversation.getId());
@@ -191,5 +193,16 @@ public class ConversationController {
         }
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(new ErrorResponse("VALIDATION_ERROR", message, "/conversations"));
+    }
+
+    /**
+     * 从 SecurityContextHolder 获取当前登录用户 ID
+     */
+    private String getCurrentUserId() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.isAuthenticated()) {
+            return authentication.getPrincipal().toString();
+        }
+        return "anonymous";
     }
 }

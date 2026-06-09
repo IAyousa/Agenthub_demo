@@ -692,6 +692,23 @@ export const useChatStore = defineStore('chat', () => {
   // 公开接口（对外导出，组件通过 useChatStore() 访问）
   // ==========================================================================
 
+  /**
+   * 重置所有会话状态（用于登出/重新登录场景）。
+   * 清空 conversation 缓存、列表、WebSocket 连接状态等。
+   */
+  function resetState() {
+    currentConversationId.value = ''
+    conversations.value = {}
+    conversationList.value = []
+    streamingMessageId.value = null
+    currentAgentId.value = ''
+    currentAgentName.value = ''
+    isLoading.value = false
+    isMessagesLoading.value = false
+    error.value = null
+    if (sendTimeout) { clearTimeout(sendTimeout); sendTimeout = null }
+  }
+
   return {
     // 基础状态
     currentConversationId,
@@ -743,5 +760,6 @@ export const useChatStore = defineStore('chat', () => {
     isArtifactVisible,
     showArtifact,
     closeArtifact,
+    resetState,
   }
 })

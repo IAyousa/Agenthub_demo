@@ -61,10 +61,13 @@ import {
 } from 'lucide-vue-next'
 import { useAuthStore } from '../../stores/auth'
 import ThemeSettingsModal from './ThemeSettingsModal.vue'
+import { useChatStore } from '../../stores/chat'
+import { destroyWsClient } from '../../websocket/wsClient'
 
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
+const chat = useChatStore()
 
 const showSettings = ref(false)
 
@@ -76,6 +79,8 @@ const goOffice = () => { router.push('/office') }
 
 const handleLogout = async () => {
   await auth.logout()
+  chat.resetState()
+  destroyWsClient()
   router.push('/login')
 }
 </script>

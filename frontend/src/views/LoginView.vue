@@ -2,9 +2,12 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import { useChatStore } from '../stores/chat'
+import { destroyWsClient } from '../websocket/wsClient'
 
 const router = useRouter()
 const auth = useAuthStore()
+const chat = useChatStore()
 
 const isRegister = ref(false)
 const username = ref('')
@@ -27,6 +30,9 @@ async function handleSubmit() {
     } else {
       await auth.login(username.value.trim(), password.value)
     }
+    // 重新登录时重置 chat store 和 WebSocket，确保右侧聊天区刷新
+    chat.resetState()
+    destroyWsClient()
     router.push('/chat')
   } catch {
     // 后端返回的错误信息已存入 auth.error
