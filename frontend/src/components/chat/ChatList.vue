@@ -4,13 +4,13 @@ import { useRouter } from 'vue-router'
 import { Search as SearchIcon, Plus as PlusIcon, X as XIcon } from 'lucide-vue-next'
 import { useChatStore } from '../../stores/chat'
 import { storeToRefs } from 'pinia'
+import CreateConversationModal from './CreateConversationModal.vue'
 
 const chatStore = useChatStore()
 const router = useRouter()
 const { currentConversationId, conversationList } = storeToRefs(chatStore)
 
-const showCreateInput = ref(false)
-const createTitle = ref('')
+const showCreateModal = ref(false)
 
 // ---- 搜索 ----
 const searchQuery = ref('')
@@ -35,22 +35,10 @@ const handleDelete = (id: string) => {
   chatStore.deleteConversation(id)
 }
 
-const handleCreateClick = () => {
-  showCreateInput.value = true
-  createTitle.value = ''
-}
-
-const confirmCreate = async () => {
-  const title = createTitle.value.trim()
-  if (title) {
-    const id = await chatStore.createConversation(title)
-    router.push('/chat/' + id)
-  }
-  showCreateInput.value = false
-}
-
-const cancelCreate = () => {
-  showCreateInput.value = false
+const handleCreateConfirm = async (data: { title: string; type: string; agentIds: string[] }) => {
+  const id = await chatStore.createConversation(data.title, data.type, data.agentIds)
+  router.push('/chat/' + id)
+  showCreateModal.value = false
 }
 
 const formatTime = (iso: string) => {
@@ -71,59 +59,20 @@ const formatTime = (iso: string) => {
 <template>
   <div class="w-64 h-full bg-gradient-to-b from-[#f8fafc] to-[#f1f5f9] border-r border-[#e2e8f0] flex flex-col">
     <div class="p-3 flex items-center gap-2">
-      <template v-if="showCreateInput">
-        <div class="flex-1 bg-white border-2 border-indigo-400 rounded-xl flex items-center px-3 py-2 shadow-sm">
-          <input
-            v-model="createTitle"
-            type="text"
-            placeholder="输入会话名称"
-            class="bg-transparent border-none outline-none text-xs w-full text-gray-700 placeholder:text-gray-400"
-            @keydown.enter="confirmCreate"
-            @keydown.escape="cancelCreate"
-          />
-        </div>
-        <button
-          @click="confirmCreate"
-          :disabled="!createTitle.trim()"
-          class="w-8 h-8 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center text-white shadow-md hover:shadow-lg transition-all flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
-          title="确认"
-        >
-          <PlusIcon :size="16" />
+      <div class="flex-1 bg-white border border-[#e2e8f0] rounded-xl flex items-center px-3 py-2 shadow-sm">
+        <SearchIcon :size="14" class="text-indigo-400 mr-2 flex-shrink-0" />
+        <input v-model="searchQuery" type="text" placeholder="搜索会话"
+          class="bg-transparent border-none outline-none text-xs w-full text-gray-700 placeholder:text-gray-400" />
+        <button v-if="searchQuery" @click="searchQuery = ''"
+          class="flex-shrink-0 ml-1 text-gray-400 hover:text-gray-600 transition-colors" title="清除搜索">
+          <XIcon :size="12" />
         </button>
-        <button
-          @click="cancelCreate"
-          class="w-8 h-8 bg-gray-100 rounded-xl flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-200 transition-all flex-shrink-0"
-          title="取消"
-        >
-          <XIcon :size="14" />
-        </button>
-      </template>
-      <template v-else>
-        <div class="flex-1 bg-white border border-[#e2e8f0] rounded-xl flex items-center px-3 py-2 shadow-sm">
-          <SearchIcon :size="14" class="text-indigo-400 mr-2 flex-shrink-0" />
-          <input
-            v-model="searchQuery"
-            type="text"
-            placeholder="搜索会话"
-            class="bg-transparent border-none outline-none text-xs w-full text-gray-700 placeholder:text-gray-400"
-          />
-          <button
-            v-if="searchQuery"
-            @click="searchQuery = ''"
-            class="flex-shrink-0 ml-1 text-gray-400 hover:text-gray-600 transition-colors"
-            title="清除搜索"
-          >
-            <XIcon :size="12" />
-          </button>
-        </div>
-        <button
-          @click="handleCreateClick"
-          class="w-8 h-8 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center text-white shadow-md hover:shadow-lg transition-all hover:scale-105 flex-shrink-0"
-          title="新建会话"
-        >
-          <PlusIcon :size="16" />
-        </button>
-      </template>
+      </div>
+      <button @click="showCreateModal = true"
+        class="w-8 h-8 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center text-white shadow-md hover:shadow-lg transition-all hover:scale-105 flex-shrink-0"
+        title="新建会话">
+        <PlusIcon :size="16" />
+      </button>
     </div>
 
     <div class="flex-1 overflow-y-auto">
@@ -163,5 +112,11 @@ const formatTime = (iso: string) => {
         </button>
       </div>
     </div>
+
+    <CreateConversationModal
+      :is-open="showCreateModal"
+      @close="showCreateModal = false"
+      @create="handleCreateConfirm"
+    />
   </div>
 </template>

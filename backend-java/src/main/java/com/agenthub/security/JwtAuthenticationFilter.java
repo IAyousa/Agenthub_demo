@@ -5,6 +5,8 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -19,6 +21,7 @@ import java.util.Collections;
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
+    private static final Logger logger = LoggerFactory.getLogger(JwtAuthenticationFilter.class);
     private static final String TOKEN_BLACKLIST_PREFIX = "blacklist:token:";
 
     private final JwtTokenProvider jwtTokenProvider;
@@ -31,13 +34,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String token = extractToken(request);
 
         if (StringUtils.hasText(token) && jwtTokenProvider.validateToken(token)) {
-            // 检查 Token 黑名单（登出后失效）
-            String blacklistKey = TOKEN_BLACKLIST_PREFIX + token;
-            Boolean isBlacklisted = stringRedisTemplate.hasKey(blacklistKey);
-            if (Boolean.TRUE.equals(isBlacklisted)) {
-                // Token 已被登出失效，不设置认证
-                filterChain.doFilter(request, response);
-                return;
+            // 检查 Token 黑名单（登出后失效）。Redis 不可用时降级放过
+            try {
+                String blacklistKey = TOKEN_BLACKLIST_PREFIX + token;
+                Boolean isBlacklisted = stringRedisTemplate.hasKey(blacklistKey);
+                if (Boolean.TRUE.equals(isBlacklisted)) {
+                    filterChain.doFilter(request, response);
+                    return;
+                }
+            } catch (Exception e) {
+                logger.warn("Redis 不可用，跳过 Token 黑名单检查: {}", e.getMessage());
             }
 
             String userId = jwtTokenProvider.getUserIdFromToken(token);

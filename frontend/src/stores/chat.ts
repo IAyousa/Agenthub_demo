@@ -456,9 +456,9 @@ export const useChatStore = defineStore('chat', () => {
    * 优先调用 REST API；API 不可用时回退到本地创建（维持 UI 可用）。
    * 调用方（ChatList）应在拿到 ID 后执行 router.push('/chat/' + id) 完成导航。
    */
-  async function createConversation(title: string): Promise<string> {
+  async function createConversation(title: string, type: string = 'direct', agentIds: string[] = []): Promise<string> {
     try {
-      const res = await apiCreateConversation({ title, type: 'direct', agentIds: [] })
+      const res = await apiCreateConversation({ title, type: type as 'direct' | 'group', agentIds })
       const id = res.data.id
       conversationList.value.unshift({
         id,
@@ -469,6 +469,7 @@ export const useChatStore = defineStore('chat', () => {
         agentNames: [],
       })
       conversations.value[id] = { id, title: res.data.title, messages: [] }
+      if (agentIds.length > 0) selectedAgentId.value = agentIds[0]
       mobileView.value = 'chat'
       error.value = null
       return id
@@ -479,7 +480,7 @@ export const useChatStore = defineStore('chat', () => {
       conversationList.value.unshift({
         id,
         title,
-        type: 'direct',
+        type: type as 'direct' | 'group',
         lastMessage: '新会话已创建',
         updatedAt: new Date().toISOString(),
         agentNames: [],
@@ -544,15 +545,8 @@ export const useChatStore = defineStore('chat', () => {
       ownerId: '1',
       members: [
         { id: '1', name: '你', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix', role: 'owner', status: 'online', lastActive: '刚刚' },
-        { id: '2', name: '张小明', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=xiaoming', role: 'admin', status: 'online', lastActive: '2分钟前', seatIndex: 0 },
-        { id: '3', name: '李小红', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=xiaohong', role: 'member', status: 'away', lastActive: '15分钟前', seatIndex: 1 },
-        { id: '4', name: '王大伟', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=dawei', role: 'member', status: 'offline', lastActive: '1小时前', seatIndex: 2 },
       ],
-      availableUsers: [
-        { id: 'u100', name: '陈静静', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=jingjing', role: 'member', status: 'online' },
-        { id: 'u101', name: '刘先生', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=liu', role: 'member', status: 'online' },
-        { id: 'u102', name: '产品经理', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=pm', role: 'member', status: 'away' },
-      ],
+      availableUsers: [],
     },
   ])
 
@@ -563,6 +557,14 @@ export const useChatStore = defineStore('chat', () => {
   const officeMembers = computed(() => currentOffice.value?.members || [])
 
   const availableUsersToInvite = computed(() => currentOffice.value?.availableUsers || [])
+
+  const officeAvailableAgents = computed<OfficeMember[]>(() =>
+    agents.value.map(a => ({
+      id: a.id, name: a.name,
+      avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${a.id}`,
+      role: 'member' as const, status: 'online' as const,
+    }))
+  )
 
   function switchOffice(officeId: string) {
     if (offices.value.find(o => o.id === officeId)) {
@@ -596,10 +598,7 @@ export const useChatStore = defineStore('chat', () => {
         members: [
           { id: '1', name: '你', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix', role: 'owner', status: 'online', lastActive: '刚刚' },
         ],
-        availableUsers: [
-          { id: 'u100', name: '陈静静', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=jingjing', role: 'member', status: 'online' },
-          { id: 'u101', name: '刘先生', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=liu', role: 'member', status: 'online' },
-        ],
+        availableUsers: [],
       })
     }
   }
@@ -624,12 +623,7 @@ export const useChatStore = defineStore('chat', () => {
       members: [
         { id: '1', name: '你', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix', role: 'owner', status: 'online', lastActive: '刚刚' },
       ],
-      availableUsers: [
-        { id: 'u100', name: '陈静静', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=jingjing', role: 'member', status: 'online' },
-        { id: 'u101', name: '刘先生', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=liu', role: 'member', status: 'online' },
-        { id: 'u102', name: '产品经理', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=pm', role: 'member', status: 'away' },
-        { id: 'u103', name: '数据分析师', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=data', role: 'member', status: 'offline' },
-      ],
+      availableUsers: [],
     }
     offices.value.push(newOffice)
     currentOfficeId.value = newOffice.id
@@ -669,7 +663,8 @@ export const useChatStore = defineStore('chat', () => {
 
   function inviteMember(userId: string, targetSeatIdx?: number) {
     if (!currentOffice.value) return
-    const user = currentOffice.value.availableUsers.find(u => u.id === userId)
+    let user = currentOffice.value.availableUsers.find(u => u.id === userId)
+    if (!user) user = officeAvailableAgents.value.find(u => u.id === userId)
     if (user) {
       const emptySeat = targetSeatIdx !== undefined ? targetSeatIdx : findEmptySeat()
       currentOffice.value.members.push({ ...user, lastActive: '刚刚', seatIndex: emptySeat })
@@ -749,6 +744,7 @@ export const useChatStore = defineStore('chat', () => {
     currentOffice,
     officeMembers,
     availableUsersToInvite,
+    officeAvailableAgents,
     switchOffice,
     openOfficeChat,
     syncOfficesFromConversations,

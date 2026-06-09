@@ -100,9 +100,13 @@ public class AuthController {
             long remainingMs = jwtTokenProvider.getRemainingMs(token);
             System.out.println("[AuthController] Logout: token prefix=" + token.substring(0, Math.min(8, token.length())) + ", remainingMs=" + remainingMs);
             if (remainingMs > 0) {
-                stringRedisTemplate.opsForValue().set(
-                    TOKEN_BLACKLIST_PREFIX + token, "1", remainingMs, TimeUnit.MILLISECONDS);
-                System.out.println("[AuthController] Logout: added to blacklist, key=blacklist:token:" + token.substring(0, Math.min(8, token.length())) + "...");
+                try {
+                    stringRedisTemplate.opsForValue().set(
+                        TOKEN_BLACKLIST_PREFIX + token, "1", remainingMs, TimeUnit.MILLISECONDS);
+                    System.out.println("[AuthController] Logout: added to blacklist, key=blacklist:token:" + token.substring(0, Math.min(8, token.length())) + "...");
+                } catch (Exception e) {
+                    System.out.println("[AuthController] Redis 不可用，跳过 Token 黑名单添加: " + e.getMessage());
+                }
             }
         }
         response.put("message", "已登出");

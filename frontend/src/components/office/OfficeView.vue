@@ -688,7 +688,10 @@ const nonOwnerMembersWithSeat = computed(() => {
     m.id !== idToAdd.value
   )
 })
-const allGuests = computed(() => currentOffice.value?.availableUsers || [])
+const allGuests = computed(() => {
+  const memberIds = new Set((currentOffice.value?.members || []).map(m => m.id))
+  return chatStore.officeAvailableAgents.filter(a => !memberIds.has(a.id))
+})
 const totalNumber = computed(() => currentOffice.value?.members.length || 0)
 
 const getMemberTransformBySeat = (seatIdx: number) => {
