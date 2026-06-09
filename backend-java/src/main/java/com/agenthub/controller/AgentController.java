@@ -2,6 +2,7 @@ package com.agenthub.controller;
 
 import com.agenthub.model.Agent;
 import com.agenthub.repository.AgentRepository;
+import com.agenthub.service.AgentCacheService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -24,13 +25,21 @@ import java.util.stream.Collectors;
 public class AgentController {
 
     private final AgentRepository agentRepository;
+    private final AgentCacheService agentCacheService;
     private final ObjectMapper objectMapper;
 
     private static final List<String> VALID_AGENT_TYPES = List.of("claude_code", "codex", "custom");
 
     @GetMapping("/agents")
     public ResponseEntity<?> list() {
-        List<Map<String, Object>> agents = agentRepository.findAll().stream()
+        List<Agent> agentList = agentRepository.findAll();
+        // 同步写入 Redis 缓存（P2：供 Python 端从 Redis 读取 Agent 列表）
+        try {
+            agentCacheService.saveAgentsBatch(agentList);
+        } catch (Exception e) {
+            log.warn("Agent 缓存写入 Redis 失败: {}", e.getMessage());
+        }
+        List<Map<String, Object>> agents = agentList.stream()
                 .map(this::toSummary)
                 .collect(Collectors.toList());
         return ResponseEntity.ok(Map.of("agents", agents));
