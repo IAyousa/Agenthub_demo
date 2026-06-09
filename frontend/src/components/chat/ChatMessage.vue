@@ -187,6 +187,41 @@ const avatarUrl = computed(() => {
 </script>
 
 <style>
+/* 主题色覆盖：用户消息气泡渐变 */
+.bg-gradient-to-br.from-indigo-500.to-purple-600 {
+  background-image: linear-gradient(to bottom right, var(--accent-start), var(--accent-end)) !important;
+}
+/* 主题色覆盖：头像 */
+.bg-gradient-to-br.from-indigo-500.to-purple-600,
+.bg-gradient-to-br.from-purple-400.to-indigo-500 {
+  background-image: linear-gradient(to bottom right, var(--accent-start), var(--accent-end)) !important;
+}
+/* 主题色覆盖：预览卡片 header */
+.bg-gradient-to-r.from-indigo-50.to-purple-50 {
+  background-image: linear-gradient(to right, color-mix(in srgb, var(--accent-start) 10%, white), color-mix(in srgb, var(--accent-end) 10%, white)) !important;
+}
+.bg-gradient-to-r.from-indigo-100.to-purple-100 {
+  background-image: linear-gradient(to right, color-mix(in srgb, var(--accent-start) 15%, white), color-mix(in srgb, var(--accent-end) 15%, white)) !important;
+}
+/* 主题色覆盖：预览卡片圆点 */
+.bg-gradient-to-r.from-indigo-500.to-purple-500 {
+  background-image: linear-gradient(to right, var(--accent-start), var(--accent-end)) !important;
+}
+/* 主题色覆盖：预览卡片文字 */
+.text-indigo-700 { color: color-mix(in srgb, var(--accent-start) 70%, #475569) !important; }
+.border-indigo-100 { border-color: color-mix(in srgb, var(--accent-start) 15%, #e2e8f0) !important; }
+/* 主题色覆盖：片段背景 */
+.bg-gradient-to-br.from-gray-50.to-indigo-50 {
+  background-image: linear-gradient(to bottom right, #f9fafb, var(--accent-light)) !important;
+}
+/* 主题色覆盖：操作按钮 hover */
+.hover\:text-indigo-500:hover { color: var(--accent-start) !important; }
+/* 主题色覆盖：markdown 链接和引用 */
+.markdown-body a { color: var(--accent-start); }
+.markdown-body blockquote {
+  border-left-color: var(--accent-start);
+}
+
 .markdown-body {
   line-height: 1.7;
 }

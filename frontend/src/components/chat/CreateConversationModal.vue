@@ -3,7 +3,7 @@
     <Transition name="modal-fade">
       <div v-if="isOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
         <div class="bg-white rounded-3xl shadow-2xl w-full max-w-md mx-4 overflow-hidden animate-in fade-in zoom-in-95 duration-300">
-          <div class="bg-gradient-to-r from-indigo-600 to-purple-600 px-8 py-6">
+          <div class="px-8 py-6" :style="{ background: `linear-gradient(to right, var(--accent-start), var(--accent-end))` }">
             <div class="flex items-center justify-between">
               <h2 class="text-2xl font-bold text-white">新建会话</h2>
               <button @click="closeModal" class="text-white/80 hover:text-white transition-colors">
@@ -69,7 +69,7 @@
           </div>
           <div class="bg-slate-50 px-8 py-4 flex gap-3 border-t border-slate-200">
             <button @click="closeModal" class="flex-1 px-4 py-2.5 rounded-xl border border-slate-300 text-slate-700 font-medium hover:bg-slate-100 transition-colors">取消</button>
-            <button @click="handleCreate" class="flex-1 px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-medium hover:shadow-lg hover:shadow-indigo-500/30 transition-all">创建会话</button>
+            <button @click="handleCreate" class="flex-1 px-4 py-2.5 rounded-xl text-white font-medium hover:shadow-lg transition-all" :style="{ background: `linear-gradient(to right, var(--accent-start), var(--accent-end))`, boxShadow: `0 4px 6px -1px color-mix(in srgb, var(--accent-start) 30%, transparent)` }">创建会话</button>
           </div>
         </div>
       </div>
@@ -122,6 +122,18 @@ const handleCreate = () => {
 </script>
 
 <style scoped>
+/* 主题色覆盖 */
+.from-indigo-600 { --tw-gradient-from: var(--accent-start) !important; }
+.to-purple-600 { --tw-gradient-to: var(--accent-end) !important; }
+.text-indigo-100 { color: color-mix(in srgb, var(--accent-start) 30%, white) !important; }
+.text-indigo-600 { color: color-mix(in srgb, var(--accent-start) 80%, #475569) !important; }
+.text-indigo-700 { color: color-mix(in srgb, var(--accent-start) 90%, #334155) !important; }
+.text-indigo-400 { color: color-mix(in srgb, var(--accent-start) 60%, #94a3b8) !important; }
+.bg-indigo-50 { background-color: color-mix(in srgb, var(--accent-start) 10%, white) !important; }
+.border-indigo-600 { border-color: var(--accent-start) !important; }
+.border-indigo-400 { border-color: color-mix(in srgb, var(--accent-start) 60%, #cbd5e1) !important; }
+.accent-indigo-600 { accent-color: var(--accent-start) !important; }
+
 .modal-fade-enter-active, .modal-fade-leave-active { transition: opacity 0.3s ease; }
 .modal-fade-enter-from, .modal-fade-leave-to { opacity: 0; }
 .animate-in { animation: slideIn 0.3s ease-out; }

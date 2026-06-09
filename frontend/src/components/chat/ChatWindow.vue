@@ -1,14 +1,14 @@
 <template>
-  <div class="flex flex-col h-full bg-gradient-to-br from-[#f8fafc] to-[#f0f4ff] overflow-hidden">
+  <div class="flex flex-col h-full overflow-hidden" :style="{ background: `linear-gradient(to bottom right, color-mix(in srgb, var(--accent-light) 50%, #f8fafc), var(--accent-light))` }">
     <!-- Header -->
-    <header class="h-[60px] bg-white/80 backdrop-blur-md border-b border-indigo-100 px-3 md:px-5 flex items-center justify-between shrink-0">
+    <header class="h-[60px] bg-white/80 backdrop-blur-md border-b px-3 md:px-5 flex items-center justify-between shrink-0" :style="{ borderColor: `color-mix(in srgb, var(--accent-start) 15%, #e2e8f0)` }">
       <div class="flex items-center gap-2">
         <!-- Mobile Back Button -->
         <button 
           @click="chatStore.mobileView = 'list'"
-          class="md:hidden p-1 hover:bg-indigo-50 rounded-full transition-colors"
+          class="md:hidden p-1 hover:bg-white/50 rounded-full transition-colors"
         >
-          <ChevronLeftIcon :size="24" class="text-indigo-600" />
+          <ChevronLeftIcon :size="24" :style="{ color: `color-mix(in srgb, var(--accent-start) 80%, #475569)` }" />
         </button>
         
         <div class="flex flex-col">
@@ -34,8 +34,8 @@
     <!-- Empty state: no conversation selected -->
     <main v-if="!chatStore.currentConversationId" class="flex-1 flex items-center justify-center bg-transparent">
       <div class="text-center">
-        <div class="w-20 h-20 mx-auto mb-5 rounded-2xl bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center">
-          <svg class="w-10 h-10 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+        <div class="w-20 h-20 mx-auto mb-5 rounded-2xl flex items-center justify-center" :style="{ background: `linear-gradient(to bottom right, color-mix(in srgb, var(--accent-start) 25%, white), color-mix(in srgb, var(--accent-end) 25%, white))` }">
+          <svg class="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" :style="{ color: `color-mix(in srgb, var(--accent-start) 50%, #94a3b8)` }">
             <path stroke-linecap="round" stroke-linejoin="round" d="M12 20.25c4.97 0 9-3.694 9-8.25s-4.03-8.25-9-8.25S3 7.444 3 12c0 2.104.859 4.023 2.273 5.48.432.447.74 1.04.586 1.641a4.483 4.483 0 01-.923 1.785A5.969 5.969 0 006 21c1.282 0 2.47-.402 3.445-1.087.81.22 1.668.337 2.555.337z" />
           </svg>
         </div>
@@ -58,11 +58,11 @@
           :metadata="msg.metadata"
         />
         <div v-if="isLoading" class="flex justify-start px-4 mb-4">
-          <div class="bg-white rounded-xl px-4 py-3 shadow-lg text-xs text-indigo-500 italic border border-indigo-100">
+          <div class="bg-white rounded-xl px-4 py-3 shadow-lg text-xs italic" :style="{ color: `color-mix(in srgb, var(--accent-start) 70%, #64748b)`, borderColor: `color-mix(in srgb, var(--accent-start) 15%, #e2e8f0)`, borderWidth: '1px', borderStyle: 'solid' }">
             <div class="flex items-center gap-2">
-              <div class="w-2 h-2 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 animate-bounce" style="animation-delay: 0ms"></div>
-              <div class="w-2 h-2 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 animate-bounce" style="animation-delay: 150ms"></div>
-              <div class="w-2 h-2 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 animate-bounce" style="animation-delay: 300ms"></div>
+              <div class="w-2 h-2 rounded-full animate-bounce" style="animation-delay: 0ms" :style="{ background: `linear-gradient(to right, var(--accent-start), var(--accent-end))` }"></div>
+              <div class="w-2 h-2 rounded-full animate-bounce" style="animation-delay: 150ms" :style="{ background: `linear-gradient(to right, var(--accent-start), var(--accent-end))` }"></div>
+              <div class="w-2 h-2 rounded-full animate-bounce" style="animation-delay: 300ms" :style="{ background: `linear-gradient(to right, var(--accent-start), var(--accent-end))` }"></div>
               <span class="ml-1">Agent 正在思考...</span>
             </div>
           </div>

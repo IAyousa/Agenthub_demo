@@ -60,7 +60,7 @@ const formatTime = (iso: string) => {
   <div class="w-64 h-full bg-gradient-to-b from-[#f8fafc] to-[#f1f5f9] border-r border-[#e2e8f0] flex flex-col">
     <div class="p-3 flex items-center gap-2">
       <div class="flex-1 bg-white border border-[#e2e8f0] rounded-xl flex items-center px-3 py-2 shadow-sm">
-        <SearchIcon :size="14" class="text-indigo-400 mr-2 flex-shrink-0" />
+        <SearchIcon :size="14" class="mr-2 flex-shrink-0" :style="{ color: `color-mix(in srgb, var(--accent-start) 60%, #94a3b8)` }" />
         <input v-model="searchQuery" type="text" placeholder="搜索会话"
           class="bg-transparent border-none outline-none text-xs w-full text-gray-700 placeholder:text-gray-400" />
         <button v-if="searchQuery" @click="searchQuery = ''"
@@ -69,8 +69,9 @@ const formatTime = (iso: string) => {
         </button>
       </div>
       <button @click="showCreateModal = true"
-        class="w-8 h-8 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center text-white shadow-md hover:shadow-lg transition-all hover:scale-105 flex-shrink-0"
-        title="新建会话">
+        class="w-8 h-8 rounded-xl flex items-center justify-center text-white shadow-md hover:shadow-lg transition-all hover:scale-105 flex-shrink-0"
+        title="新建会话"
+        :style="{ background: `linear-gradient(to right, var(--accent-start), var(--accent-end))` }">
         <PlusIcon :size="16" />
       </button>
     </div>
@@ -82,10 +83,11 @@ const formatTime = (iso: string) => {
         @click="handleSelect(item.id)"
         :class="[
           'flex items-center px-3 py-3 cursor-pointer transition-all duration-200 mx-2 my-1 rounded-xl group relative',
-          currentConversationId === item.id ? 'bg-gradient-to-r from-[#eef2ff] to-[#e0e7ff] border border-[#c7d2fe] shadow-sm' : 'hover:bg-white hover:shadow-sm'
+          currentConversationId === item.id ? 'border shadow-sm' : 'hover:bg-white hover:shadow-sm'
         ]"
+        :style="currentConversationId === item.id ? { background: `linear-gradient(to right, var(--accent-light), color-mix(in srgb, var(--accent-light) 80%, white))`, borderColor: `color-mix(in srgb, var(--accent-start) 50%, transparent)` } : {}"
       >
-        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-400 to-purple-500 mr-3 flex items-center justify-center shadow-md flex-shrink-0">
+        <div class="w-10 h-10 rounded-xl mr-3 flex items-center justify-center shadow-md flex-shrink-0" :style="{ background: `linear-gradient(to bottom right, var(--accent-start), var(--accent-end))` }">
           <span class="text-white text-sm font-bold">{{ item.title.charAt(0) }}</span>
         </div>
         <div class="flex-1 min-w-0">
@@ -97,7 +99,7 @@ const formatTime = (iso: string) => {
             <span
               v-for="name in item.agentNames.slice(0, 2)"
               :key="name"
-              class="text-[9px] text-indigo-400 bg-indigo-50 px-1.5 py-0.5 rounded-full truncate max-w-[80px]"
+              class="text-[9px] px-1.5 py-0.5 rounded-full truncate max-w-[80px]" :style="{ color: `color-mix(in srgb, var(--accent-start) 70%, #64748b)`, background: `color-mix(in srgb, var(--accent-start) 10%, white)` }"
             >{{ name }}</span>
             <span v-if="item.agentNames.length > 2" class="text-[9px] text-gray-400">+{{ item.agentNames.length - 2 }}</span>
           </div>

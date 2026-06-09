@@ -534,23 +534,9 @@ export const useChatStore = defineStore('chat', () => {
   // 办公室管理（保持 mock 不变，P2 阶段迁至 API）
   // ==========================================================================
 
-  const offices = ref<Office[]>([
-    {
-      id: 'office-1',
-      name: '默认办公室',
-      description: '团队协作空间',
-      theme: 'modern',
-      maxMembers: 8,
-      createdAt: new Date().toISOString(),
-      ownerId: '1',
-      members: [
-        { id: '1', name: '你', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix', role: 'owner', status: 'online', lastActive: '刚刚' },
-      ],
-      availableUsers: [],
-    },
-  ])
+  const offices = ref<Office[]>([])
 
-  const currentOfficeId = ref<string>('office-1')
+  const currentOfficeId = ref<string>('')
 
   const currentOffice = computed(() => offices.value.find(o => o.id === currentOfficeId.value))
 
@@ -603,7 +589,7 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
-  async function createOffice(data: { name: string; description: string; maxMembers: number; theme: string }) {
+  async function createOffice(data: { name: string; description: string; maxMembers: number }) {
     let conversationId: string | undefined
     try {
       const conv = await apiCreateConversation({ title: data.name, type: 'group', agentIds: [] })
@@ -615,7 +601,7 @@ export const useChatStore = defineStore('chat', () => {
       id: `office-${Date.now()}`,
       name: data.name,
       description: data.description,
-      theme: data.theme,
+      theme: 'modern',
       maxMembers: data.maxMembers,
       conversationId,
       createdAt: new Date().toISOString(),

@@ -1,10 +1,10 @@
 <template>
-  <footer class="h-[180px] bg-white/90 backdrop-blur-md border-t border-indigo-100 flex flex-col shrink-0">
-    <div class="h-10 px-4 flex items-center gap-4 text-indigo-400">
-      <SmileIcon :size="20" class="cursor-pointer hover:text-indigo-600 transition-colors" />
-      <FolderIcon :size="20" class="cursor-pointer hover:text-indigo-600 transition-colors" />
-      <ScissorsIcon :size="20" class="cursor-pointer hover:text-indigo-600 transition-colors" />
-      <HistoryIcon :size="20" class="cursor-pointer hover:text-indigo-600 transition-colors ml-auto" />
+  <footer class="h-[180px] bg-white/90 backdrop-blur-md border-t flex flex-col shrink-0 input-footer">
+    <div class="h-10 px-4 flex items-center gap-4 input-toolbar">
+      <SmileIcon :size="20" class="cursor-pointer transition-colors toolbar-icon" />
+      <FolderIcon :size="20" class="cursor-pointer transition-colors toolbar-icon" />
+      <ScissorsIcon :size="20" class="cursor-pointer transition-colors toolbar-icon" />
+      <HistoryIcon :size="20" class="cursor-pointer transition-colors toolbar-icon ml-auto" />
     </div>
 
     <div class="flex-1 px-4">
@@ -22,7 +22,7 @@
         @click="handleSend"
         :class="[
           'px-6 py-2 rounded-xl text-[13px] font-semibold transition-all shadow-md',
-          canSend ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:shadow-lg hover:scale-105 transform' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+          canSend ? 'send-btn text-white hover:shadow-lg hover:scale-105 transform' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
         ]"
         :disabled="!canSend"
       >
@@ -65,3 +65,10 @@ const handleSend = () => {
   input.value = ''
 }
 </script>
+
+<style scoped>
+.input-footer { border-color: color-mix(in srgb, var(--accent-start) 15%, #e2e8f0); }
+.toolbar-icon { color: color-mix(in srgb, var(--accent-start) 50%, #94a3b8); }
+.toolbar-icon:hover { color: var(--accent-start); }
+.send-btn { background: linear-gradient(to right, var(--accent-start), var(--accent-end)); }
+</style>

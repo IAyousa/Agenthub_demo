@@ -59,26 +59,6 @@
               </div>
             </div>
 
-            <!-- Theme Selection -->
-            <div>
-              <label class="block text-sm font-semibold text-slate-700 mb-3">选择主题</label>
-              <div class="grid grid-cols-4 gap-3">
-                <button
-                  v-for="theme in themes"
-                  :key="theme.id"
-                  @click="formData.theme = theme.id"
-                  :class="[
-                    'p-3 rounded-xl border-2 transition-all',
-                    formData.theme === theme.id
-                      ? 'border-indigo-600 bg-indigo-50'
-                      : 'border-slate-200 hover:border-slate-300'
-                  ]"
-                >
-                  <div :class="['w-full h-12 rounded-lg', theme.bgClass]"></div>
-                  <p class="text-xs font-medium text-slate-600 mt-2 text-center">{{ theme.name }}</p>
-                </button>
-              </div>
-            </div>
           </div>
 
           <!-- Footer -->
@@ -118,7 +98,7 @@ interface Props {
 
 interface Emits {
   (e: 'close'): void
-  (e: 'create', data: { name: string; description: string; maxMembers: number; theme: string }): void
+  (e: 'create', data: { name: string; description: string; maxMembers: number }): void
 }
 
 defineProps<Props>()
@@ -129,19 +109,11 @@ const formData = reactive({
   name: '',
   description: '',
   maxMembers: 8,
-  theme: 'modern'
 })
 
 const errors = reactive({
   name: ''
 })
-
-const themes = [
-  { id: 'modern', name: '现代', bgClass: 'bg-gradient-to-br from-indigo-500 to-purple-600' },
-  { id: 'ocean', name: '海洋', bgClass: 'bg-gradient-to-br from-blue-400 to-cyan-500' },
-  { id: 'forest', name: '森林', bgClass: 'bg-gradient-to-br from-green-400 to-emerald-600' },
-  { id: 'sunset', name: '日落', bgClass: 'bg-gradient-to-br from-orange-400 to-red-500' }
-]
 
 const closeModal = () => {
   resetForm()
@@ -152,7 +124,6 @@ const resetForm = () => {
   formData.name = ''
   formData.description = ''
   formData.maxMembers = 8
-  formData.theme = 'modern'
   errors.name = ''
 }
 
@@ -178,7 +149,6 @@ const createOffice = async () => {
     name: formData.name,
     description: formData.description,
     maxMembers: formData.maxMembers,
-    theme: formData.theme
   })
   
   isLoading.value = false
@@ -187,6 +157,16 @@ const createOffice = async () => {
 </script>
 
 <style scoped>
+/* 主题色覆盖 */
+.from-indigo-600 { --tw-gradient-from: var(--accent-start) !important; }
+.to-purple-600 { --tw-gradient-to: var(--accent-end) !important; }
+.text-indigo-600 { color: color-mix(in srgb, var(--accent-start) 80%, #475569) !important; }
+.text-indigo-100 { color: color-mix(in srgb, var(--accent-start) 30%, white) !important; }
+.bg-indigo-50 { background-color: color-mix(in srgb, var(--accent-start) 10%, white) !important; }
+.border-indigo-600 { border-color: var(--accent-start) !important; }
+.accent-indigo-600 { accent-color: var(--accent-start) !important; }
+.shadow-indigo-500\/30 { --tw-shadow-color: color-mix(in srgb, var(--accent-start) 30%, transparent) !important; }
+
 .modal-fade-enter-active,
 .modal-fade-leave-active {
   transition: opacity 0.3s ease;

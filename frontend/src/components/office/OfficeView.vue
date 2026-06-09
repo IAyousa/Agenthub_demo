@@ -963,7 +963,7 @@ const confirmDisbandOffice = () => {
 }
 
 // 处理新建办公室
-const handleCreateOffice = async (data: { name: string; description: string; maxMembers: number; theme: string }) => {
+const handleCreateOffice = async (data: { name: string; description: string; maxMembers: number }) => {
   await chatStore.createOffice(data)
   showCreateModal.value = false
   isChatOpen.value = false
@@ -971,6 +971,23 @@ const handleCreateOffice = async (data: { name: string; description: string; max
 </script>
 
 <style scoped>
+/* 主题色覆盖 */
+.from-indigo-600 { --tw-gradient-from: var(--accent-start) !important; }
+.to-purple-600 { --tw-gradient-to: var(--accent-end) !important; }
+.from-indigo-500 { --tw-gradient-from: var(--accent-start) !important; }
+.to-purple-500 { --tw-gradient-to: var(--accent-end) !important; }
+.text-indigo-600 { color: color-mix(in srgb, var(--accent-start) 80%, #475569) !important; }
+.text-indigo-100 { color: color-mix(in srgb, var(--accent-start) 30%, white) !important; }
+.bg-indigo-50 { background-color: color-mix(in srgb, var(--accent-start) 10%, white) !important; }
+.border-indigo-100 { border-color: color-mix(in srgb, var(--accent-start) 15%, #e2e8f0) !important; }
+.bg-indigo-400 { background-color: color-mix(in srgb, var(--accent-start) 50%, #818cf8) !important; }
+.hover\:bg-indigo-100\/70:hover { background-color: color-mix(in srgb, var(--accent-start) 15%, white) !important; }
+.bg-indigo-100\/60 { background-color: color-mix(in srgb, var(--accent-start) 20%, white) !important; }
+.shadow-indigo-500\/40 { --tw-shadow-color: color-mix(in srgb, var(--accent-start) 40%, transparent) !important; }
+.from-slate-50 { --tw-gradient-from: #f8fafc !important; }
+.via-blue-50 { --tw-gradient-via: var(--accent-light) !important; }
+.to-indigo-50 { --tw-gradient-to: var(--accent-light) !important; }
+
 .pop-fade-enter-active, .pop-fade-leave-active {
   transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }

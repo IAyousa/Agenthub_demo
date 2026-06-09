@@ -1,16 +1,16 @@
 <template>
-  <div class="w-16 h-full bg-gradient-to-b from-[#1e1b4b] to-[#312e81] flex flex-col items-center py-6 space-y-6">
-    <div class="w-9 h-9 bg-gradient-to-br from-[#6366f1] to-[#8b5cf6] rounded-xl mb-2 overflow-hidden shadow-lg shadow-indigo-500/20">
+  <div class="w-16 h-full flex flex-col items-center py-6 space-y-6" :style="{ background: `linear-gradient(to bottom, var(--sidebar-start), var(--sidebar-end))` }">
+    <div class="w-9 h-9 rounded-xl mb-2 overflow-hidden shadow-lg" :style="{ background: `linear-gradient(to bottom right, var(--accent-start), var(--accent-end))`, boxShadow: `0 4px 6px -1px color-mix(in srgb, var(--accent-start) 20%, transparent)` }">
       <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix" alt="avatar" />
     </div>
 
-    <div class="flex flex-col space-y-6 flex-1 text-[#a5b4fc]">
+    <div class="flex flex-col space-y-6 flex-1" :style="{ color: `color-mix(in srgb, var(--accent-start) 60%, white)` }">
       <div
         @click="goChat"
         class="cursor-pointer hover:text-white transition-all duration-300 relative"
         :class="isChatActive ? 'text-white' : ''"
       >
-        <div v-if="isChatActive" class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-gradient-to-b from-[#6366f1] to-[#8b5cf6] rounded-r-full"></div>
+        <div v-if="isChatActive" class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 rounded-r-full" :style="{ background: `linear-gradient(to bottom, var(--accent-start), var(--accent-end))` }"></div>
         <MessageSquareIcon :size="22" />
       </div>
       <div
@@ -18,7 +18,7 @@
         class="cursor-pointer hover:text-white transition-all duration-300 relative"
         :class="isOfficeActive ? 'text-white' : ''"
       >
-        <div v-if="isOfficeActive" class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-gradient-to-b from-[#6366f1] to-[#8b5cf6] rounded-r-full"></div>
+        <div v-if="isOfficeActive" class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 rounded-r-full" :style="{ background: `linear-gradient(to bottom, var(--accent-start), var(--accent-end))` }"></div>
         <Building2Icon :size="22" />
       </div>
       <div class="cursor-pointer hover:text-white transition-all duration-300">
@@ -26,8 +26,11 @@
       </div>
     </div>
 
-    <div class="flex flex-col space-y-6 text-[#a5b4fc] pb-4">
-      <div class="cursor-pointer hover:text-white transition-all duration-300">
+    <div class="flex flex-col space-y-6 pb-4" :style="{ color: `color-mix(in srgb, var(--accent-start) 60%, white)` }">
+      <div
+        @click="showSettings = true"
+        class="cursor-pointer hover:text-white transition-all duration-300"
+      >
         <SettingsIcon :size="22" />
       </div>
       <div
@@ -38,11 +41,16 @@
         <LogOutIcon :size="22" />
       </div>
     </div>
+
+    <ThemeSettingsModal
+      :is-open="showSettings"
+      @close="showSettings = false"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   MessageSquare as MessageSquareIcon,
@@ -52,21 +60,19 @@ import {
   LogOut as LogOutIcon
 } from 'lucide-vue-next'
 import { useAuthStore } from '../../stores/auth'
+import ThemeSettingsModal from './ThemeSettingsModal.vue'
 
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 
+const showSettings = ref(false)
+
 const isChatActive = computed(() => route.name === 'chat')
 const isOfficeActive = computed(() => route.name === 'office')
 
-const goChat = () => {
-  router.push('/chat')
-}
-
-const goOffice = () => {
-  router.push('/office')
-}
+const goChat = () => { router.push('/chat') }
+const goOffice = () => { router.push('/office') }
 
 const handleLogout = async () => {
   await auth.logout()
