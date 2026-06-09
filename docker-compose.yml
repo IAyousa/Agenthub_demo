@@ -1,0 +1,22 @@
+# AgentHub — PostgreSQL 本地开发容器
+# 启动: docker-compose up -d
+# 停止: docker-compose down
+# 数据持久化于 named volume postgres_data
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: agenthub-postgres
+    environment:
+      POSTGRES_DB: agenthub
+      POSTGRES_USER: agenthub
+      POSTGRES_PASSWORD: agenthub123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local

@@ -1,0 +1,27 @@
+# ================================================================
+# AgentHub — PostgreSQL Profile 配置
+# ================================================================
+# 使用方式: mvn spring-boot:run -Dspring-boot.run.profiles=pg
+# 前置条件: docker-compose up -d (启动 PostgreSQL 容器)
+# ================================================================
+
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/agenthub?charSet=UTF-8
+    username: ${PG_USERNAME:agenthub}
+    password: ${PG_PASSWORD:agenthub123}
+    driver-class-name: org.postgresql.Driver
+  sql:
+    init:
+      mode: always
+      encoding: UTF-8
+      data-locations: classpath:data-pg.sql
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    defer-datasource-initialization: true
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
