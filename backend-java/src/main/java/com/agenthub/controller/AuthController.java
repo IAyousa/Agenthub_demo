@@ -8,6 +8,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 @RestController
 @RequestMapping("/auth")
@@ -28,6 +30,9 @@ public class AuthController {
     private final UserRepository userRepository;
     private final JwtTokenProvider jwtTokenProvider;
     private final BCryptPasswordEncoder passwordEncoder;
+    private final StringRedisTemplate stringRedisTemplate;
+
+    private static final String TOKEN_BLACKLIST_PREFIX = "blacklist:token:";
 
     @Data
     public static class RegisterRequest {
@@ -84,6 +89,23 @@ public class AuthController {
         response.put("token", token);
         response.put("userId", user.getId());
         response.put("username", user.getUsername());
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<Map<String, Object>> logout(@RequestHeader("Authorization") String authHeader) {
+        Map<String, Object> response = new LinkedHashMap<>();
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            String token = authHeader.substring(7);
+            long remainingMs = jwtTokenProvider.getRemainingMs(token);
+            System.out.println("[AuthController] Logout: token prefix=" + token.substring(0, Math.min(8, token.length())) + ", remainingMs=" + remainingMs);
+            if (remainingMs > 0) {
+                stringRedisTemplate.opsForValue().set(
+                    TOKEN_BLACKLIST_PREFIX + token, "1", remainingMs, TimeUnit.MILLISECONDS);
+                System.out.println("[AuthController] Logout: added to blacklist, key=blacklist:token:" + token.substring(0, Math.min(8, token.length())) + "...");
+            }
+        }
+        response.put("message", "已登出");
         return ResponseEntity.ok(response);
     }
 

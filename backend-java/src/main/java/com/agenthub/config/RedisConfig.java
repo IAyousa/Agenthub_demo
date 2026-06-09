@@ -7,6 +7,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
@@ -40,5 +41,11 @@ public class RedisConfig {
         redisTemplate.afterPropertiesSet();
 
         return redisTemplate;
+    }
+
+    /** StringRedisTemplate — 用于 Token 黑名单等纯字符串场景 */
+    @Bean
+    public StringRedisTemplate stringRedisTemplate(RedisConnectionFactory redisConnectionFactory) {
+        return new StringRedisTemplate(redisConnectionFactory);
     }
 }

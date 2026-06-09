@@ -40,6 +40,17 @@ public class JwtTokenProvider {
         return parseClaims(token).getSubject();
     }
 
+    /** 获取 Token 的剩余有效时间（毫秒），已过期返回 0。用于登出时设置黑名单 TTL。 */
+    public long getRemainingMs(String token) {
+        try {
+            Date exp = parseClaims(token).getExpiration();
+            long remaining = exp.getTime() - System.currentTimeMillis();
+            return Math.max(remaining, 0);
+        } catch (JwtException | IllegalArgumentException e) {
+            return 0;
+        }
+    }
+
     public boolean validateToken(String token) {
         try {
             parseClaims(token);
