@@ -53,6 +53,8 @@ agent:
   service:
     url: http://localhost:8000
     timeout: 120000
+  workspace:
+    root: ${user.home}/agenthub_workspaces
 
 # CORS 跨域配置
 cors:

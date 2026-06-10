@@ -1,4 +1,4 @@
-package com.agenthub.controller;
+﻿package com.agenthub.controller;
 
 import com.agenthub.dto.SendMessageRequest;
 import com.agenthub.model.Agent;
@@ -17,6 +17,8 @@ import org.springframework.stereotype.Controller;
 
 import java.util.*;
 
+import org.springframework.beans.factory.annotation.Value;
+
 @Slf4j
 @Controller
 @RequiredArgsConstructor
@@ -27,6 +29,9 @@ public class WebSocketController {
     private final MessageService messageService;
     private final ConversationRepository conversationRepository;
     private final AgentRepository agentRepository;
+
+    @Value("${agent.workspace.root:${user.home}/agenthub_workspaces}")
+    private String workspaceRoot;
 
     @MessageMapping("/chat.send")
     public void handleUserMessage(@Payload SendMessageRequest request) {
@@ -78,7 +83,7 @@ public class WebSocketController {
         boolean[] receivedTokens = {false};
         StringBuilder fullResponse = new StringBuilder();
 
-        String workspacePath = "./agent_workspaces/" + conversationId;
+        String workspacePath = workspaceRoot + "/" + conversationId;
         agentGatewayService.sendToAgent(context, agentType, systemPrompt, workspacePath,
                 conversationId, token -> {
             try {

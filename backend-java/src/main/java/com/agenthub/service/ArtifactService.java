@@ -188,6 +188,11 @@ public class ArtifactService {
     }
 
     @Transactional(readOnly = true)
+    public List<Artifact> findByConversationIdAndFilename(String conversationId, String filename) {
+        return artifactRepository.findByConversationIdAndFilename(conversationId, filename);
+    }
+
+    @Transactional(readOnly = true)
     public java.io.File getFile(String id) {
         if (id == null || id.isBlank()) {
             throw new IllegalArgumentException("产物ID不能为空");

@@ -19,6 +19,7 @@ AgentHub Agent Service — 全局配置
 
 from pydantic_settings import BaseSettings
 from typing import List
+import os
 
 
 class Settings(BaseSettings):
@@ -37,7 +38,7 @@ class Settings(BaseSettings):
     # 使用方式：claude -p "你的提示词"（非交互模式，输出到 stdout）
     # 环境要求：需要设置 ANTHROPIC_API_KEY 环境变量
     CLAUDE_CLI_COMMAND: str = "claude"               # Claude Code CLI 命令名或绝对路径
-    CLAUDE_CLI_ARGS: List[str] = []                  # 额外的 CLI 参数（如 ["--model", "claude-sonnet-4-20250514"]）
+    CLAUDE_CLI_ARGS: List[str] = ["--permission-mode", "bypassPermissions"]  # 跳过所有权限提示
     # stream-json 模式参数：实现逐 token 实时流式输出（必须配合 --print 和 --verbose）
     CLAUDE_STREAM_ARGS: List[str] = [
         "--output-format", "stream-json",
@@ -51,14 +52,14 @@ class Settings(BaseSettings):
     # 使用方式：codex exec "你的提示词"（在执行模式下运行任务）
     # 环境要求：需要设置 OPENAI_API_KEY 环境变量
     CODEX_CLI_COMMAND: str = "codex"                 # Codex CLI 命令名或绝对路径
-    CODEX_CLI_ARGS: List[str] = []                   # 额外的 CLI 参数（如 ["--model", "gpt-5"]）
+    CODEX_CLI_ARGS: List[str] = ["--full-auto"]       # 全自动模式，跳过所有权限确认
     CODEX_SKIP_GIT_CHECK: bool = True                # 非 Git 目录下跳过仓库检查（--skip-git-repo-check），AgentHub workspace 通常不在 Git 仓库中
 
     # ========== Agent 调用参数 ==========
     # 控制 Agent 调用的行为
     AGENT_TIMEOUT: int = 300                          # 单次 Agent 任务超时（秒），CLI 可能执行文件操作等耗时任务
     AGENT_WORKING_DIRECTORY: str = "."                # Agent CLI 执行任务的默认工作目录（fallback，不传 workingDirectory 时使用）
-    AGENT_WORKSPACE_ROOT: str = "./agent_workspaces" # Agent 独立工作区根目录，每个会话一个子目录，与项目源码隔离
+    AGENT_WORKSPACE_ROOT: str = os.path.join(os.path.expanduser("~"), "agenthub_workspaces")  # 工作区根目录（项目目录之外），每会话一个子目录
 
     # ========== Agent 注册表（Fallback 缓存） ==========
     # 这是 Python 端的 Agent 元数据缓存，用于以下场景：

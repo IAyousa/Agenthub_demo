@@ -22,7 +22,12 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
+        // 原生 WebSocket 端点（流式输出推荐，无 SockJS 帧缓冲延迟）
         registry.addEndpoint("/ws-chat")
+                .setAllowedOriginPatterns(allowedOrigins.split(","));
+
+        // SockJS 降级端点（企业代理/旧浏览器兼容）
+        registry.addEndpoint("/ws-chat-sockjs")
                 .setAllowedOriginPatterns(allowedOrigins.split(","))
                 .withSockJS();
     }

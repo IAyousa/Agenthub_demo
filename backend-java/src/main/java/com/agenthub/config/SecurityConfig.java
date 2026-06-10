@@ -33,8 +33,11 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/auth/**").permitAll()
                 .requestMatchers("/ws-chat/**").permitAll()
+                .requestMatchers("/ws-chat-sockjs/**").permitAll()
                 .requestMatchers("/h2-console/**").permitAll()
                 .requestMatchers("/internal/**").permitAll()
+                .requestMatchers("/artifacts/**").permitAll()
+                .requestMatchers("/conversations/*/download").permitAll()
                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)

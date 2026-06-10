@@ -2,9 +2,11 @@ package com.agenthub.controller;
 
 import com.agenthub.dto.ArtifactDTO;
 import com.agenthub.dto.InternalArtifactRequest;
+import com.agenthub.model.Artifact;
 import com.agenthub.service.ArtifactService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
@@ -15,14 +17,14 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
+import java.io.*;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.nio.file.*;
 import java.time.LocalDateTime;
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.util.*;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 @Slf4j
 @RestController
@@ -31,6 +33,9 @@ public class ArtifactController {
 
     private final ArtifactService artifactService;
     private final SimpMessagingTemplate messagingTemplate;
+
+    @Value("${agent.workspace.root:${user.home}/agenthub_workspaces}")
+    private String workspaceRoot;
 
     @PostMapping(value = "/artifacts/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> upload(@RequestParam("file") MultipartFile file,
@@ -62,6 +67,34 @@ public class ArtifactController {
         }
     }
 
+    /**
+     * Serve artifact by conversationId + filename — resolves relative paths in HTML iframes.
+     * e.g. /artifacts/conversation/conv123/style.css → serves the latest matching artifact.
+     */
+    @GetMapping("/artifacts/conversation/{conversationId}/{filename}")
+    public ResponseEntity<?> serveByConversationAndFilename(
+            @PathVariable String conversationId,
+            @PathVariable String filename) {
+        try {
+            List<Artifact> artifacts = artifactService.findByConversationIdAndFilename(conversationId, filename);
+            if (artifacts.isEmpty()) {
+                return error(HttpStatus.NOT_FOUND, "NOT_FOUND",
+                        "文件不存在: " + filename, "/artifacts/conversation/" + conversationId + "/" + filename);
+            }
+            // Use the latest version (last in list) if multiple exist
+            Artifact artifact = artifacts.get(artifacts.size() - 1);
+            java.io.File file = artifactService.getFile(artifact.getId());
+            if (file == null) {
+                return error(HttpStatus.NOT_FOUND, "NOT_FOUND",
+                        "产物文件丢失: " + filename, "/artifacts/conversation/" + conversationId + "/" + filename);
+            }
+            return serveFile(file, artifact.getId());
+        } catch (IllegalArgumentException e) {
+            return error(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", e.getMessage(),
+                    "/artifacts/conversation/" + conversationId + "/" + filename);
+        }
+    }
+
     @GetMapping("/conversations/{conversationId}/artifacts")
     public ResponseEntity<?> listByConversation(@PathVariable String conversationId) {
         try {
@@ -89,7 +122,7 @@ public class ArtifactController {
 
     /**
      * Internal endpoint for Python Agent Service to push agent-generated files.
-     * Saves file content → DB record → pushes preview_card to WebSocket.
+     * Saves file content → DB record only (no WebSocket push — use /batch for notifications).
      */
     @PostMapping("/internal/artifacts")
     public ResponseEntity<?> internalUpload(@RequestBody InternalArtifactRequest req) {
@@ -98,35 +131,127 @@ public class ArtifactController {
                     req.getConversationId(), req.getMessageId(),
                     req.getFilename(), req.getContent(), req.getContentType());
 
-            // Push preview_card to the conversation topic
-            String topic = "/topic/conversation." + req.getConversationId();
-            Map<String, Object> previewCard = new LinkedHashMap<>();
-            previewCard.put("type", "chunk");
-            // Send actual file content (trimmed for large files) so the frontend can render it
-            String displayContent = req.getContent() != null ? req.getContent() : dto.getFilename();
-            previewCard.put("content", displayContent);
-            previewCard.put("isComplete", true);
-            previewCard.put("agentId", "agent_system");
-            previewCard.put("agentName", "System");
-            previewCard.put("messageType", "preview_card");
-            // Metadata: frontend uses title/language/previewUrl for the preview card UI
-            Map<String, String> metadata = new LinkedHashMap<>();
-            metadata.put("artifactId", dto.getId());
-            metadata.put("filename", dto.getFilename());
-            metadata.put("title", dto.getFilename());
-            metadata.put("language", inferLanguage(dto.getFilename()));
-            metadata.put("previewUrl", "/artifacts/" + dto.getId());
-            previewCard.put("metadata", metadata);
-            messagingTemplate.convertAndSend(topic, previewCard);
-
-            log.info("Internal artifact saved and preview pushed: id={}, conversation={}",
-                    dto.getId(), req.getConversationId());
+            log.info("Internal artifact saved (silent): id={}, conversation={}, filename={}",
+                    dto.getId(), req.getConversationId(), dto.getFilename());
             return ResponseEntity.status(HttpStatus.CREATED).body(dto);
         } catch (IllegalArgumentException e) {
             return error(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", e.getMessage(), "/internal/artifacts");
         } catch (IOException e) {
             log.error("Failed to save internal artifact", e);
             return error(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", "产物保存失败", "/internal/artifacts");
+        }
+    }
+
+    /**
+     * Internal batch endpoint for Python workspace scanner to push multiple files at once.
+     * Processes each file → pushes a single project_bundle WebSocket event.
+     */
+    @PostMapping("/internal/artifacts/batch")
+    public ResponseEntity<?> internalBatchUpload(@RequestBody List<InternalArtifactRequest> requests) {
+        List<Map<String, Object>> files = new ArrayList<>();
+        String conversationId = null;
+        String messageId = null;
+
+        for (InternalArtifactRequest req : requests) {
+            try {
+                ArtifactDTO dto = artifactService.saveFromContent(
+                        req.getConversationId(), req.getMessageId(),
+                        req.getFilename(), req.getContent(), req.getContentType());
+
+                if (conversationId == null) conversationId = req.getConversationId();
+                if (messageId == null) messageId = req.getMessageId();
+
+                Map<String, Object> fileInfo = new LinkedHashMap<>();
+                fileInfo.put("artifactId", dto.getId());
+                fileInfo.put("filename", dto.getFilename());
+                fileInfo.put("path", req.getFilename());
+                fileInfo.put("language", inferLanguage(req.getFilename()));
+                fileInfo.put("previewUrl", "/artifacts/" + dto.getId());
+                fileInfo.put("size", dto.getFileSize());
+                files.add(fileInfo);
+            } catch (IllegalArgumentException | IOException e) {
+                log.warn("Batch upload: skipping file {} — {}", req.getFilename(), e.getMessage());
+            }
+        }
+
+        // Push project_bundle summary to WebSocket — 延迟 1s 确保文本消息先到达前端
+        if (conversationId != null && !files.isEmpty()) {
+            final String topic = "/topic/conversation." + conversationId;
+            final String finalMessageId = messageId;
+            final List<Map<String, Object>> finalFiles = files;
+            log.info("Batch upload: {} files → scheduling project_bundle push to {}", files.size(), topic);
+
+            java.util.concurrent.CompletableFuture.delayedExecutor(
+                    1500, java.util.concurrent.TimeUnit.MILLISECONDS).execute(() -> {
+                Map<String, Object> bundle = new LinkedHashMap<>();
+                bundle.put("type", "chunk");
+                bundle.put("content", "项目成果已生成，共 " + finalFiles.size() + " 个文件");
+                bundle.put("isComplete", true);
+                bundle.put("agentId", "agent_system");
+                bundle.put("agentName", "System");
+                bundle.put("messageType", "project_bundle");
+                bundle.put("messageId", finalMessageId);
+                bundle.put("metadata", Map.of("files", finalFiles));
+                messagingTemplate.convertAndSend(topic, bundle);
+                log.info("Batch upload: pushed project_bundle to {}", topic);
+            });
+        }
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("files", files);
+        result.put("total", files.size());
+        return ResponseEntity.status(HttpStatus.CREATED).body(result);
+    }
+
+    /**
+     * Download all project files for a conversation as a ZIP archive.
+     * Scans the workspace directory and packages everything (excluding node_modules, .git, etc.).
+     */
+    @GetMapping("/conversations/{conversationId}/download")
+    public ResponseEntity<?> downloadProject(@PathVariable String conversationId) {
+        Path workspaceDir = Paths.get(workspaceRoot, conversationId);
+        if (!Files.isDirectory(workspaceDir)) {
+            return error(HttpStatus.NOT_FOUND, "NOT_FOUND",
+                    "项目工作目录不存在: " + conversationId, "/conversations/" + conversationId + "/download");
+        }
+
+        try {
+            java.io.File zipFile = File.createTempFile("project_" + conversationId + "_", ".zip");
+            Set<String> ignoreDirs = Set.of(".claude", ".codex", ".git", "node_modules",
+                    "__pycache__", ".venv", "venv", ".DS_Store");
+
+            try (ZipOutputStream zos = new ZipOutputStream(new FileOutputStream(zipFile))) {
+                Files.walk(workspaceDir)
+                        .filter(Files::isRegularFile)
+                        .filter(p -> {
+                            for (Path part : workspaceDir.relativize(p)) {
+                                if (ignoreDirs.contains(part.toString())) return false;
+                            }
+                            return true;
+                        })
+                        .forEach(p -> {
+                            try {
+                                String entryName = workspaceDir.relativize(p).toString().replace("\\", "/");
+                                zos.putNextEntry(new ZipEntry(entryName));
+                                Files.copy(p, zos);
+                                zos.closeEntry();
+                            } catch (IOException ignored) {}
+                        });
+            }
+
+            Resource resource = new FileSystemResource(zipFile);
+            String downloadName = URLEncoder.encode("project_" + conversationId + ".zip",
+                    StandardCharsets.UTF_8).replace("+", "%20");
+
+            return ResponseEntity.ok()
+                    .contentType(MediaType.parseMediaType("application/zip"))
+                    .header(HttpHeaders.CONTENT_DISPOSITION,
+                            "attachment; filename*=UTF-8''" + downloadName)
+                    .body(resource);
+        } catch (IOException e) {
+            log.error("Failed to zip project for conversation: {}", conversationId, e);
+            return error(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR",
+                    "项目打包失败", "/conversations/" + conversationId + "/download");
         }
     }
 
@@ -145,26 +270,42 @@ public class ArtifactController {
         return "plaintext";
     }
 
+    private String mimeType(String filename) {
+        if (filename == null) return "application/octet-stream";
+        String name = filename.toLowerCase();
+        if (name.endsWith(".html") || name.endsWith(".htm")) return "text/html";
+        if (name.endsWith(".css")) return "text/css";
+        if (name.endsWith(".js")) return "application/javascript";
+        if (name.endsWith(".ts")) return "text/typescript";
+        if (name.endsWith(".tsx")) return "text/typescript";
+        if (name.endsWith(".jsx")) return "text/javascript";
+        if (name.endsWith(".json")) return "application/json";
+        if (name.endsWith(".xml")) return "application/xml";
+        if (name.endsWith(".svg")) return "image/svg+xml";
+        if (name.endsWith(".png")) return "image/png";
+        if (name.endsWith(".jpg") || name.endsWith(".jpeg")) return "image/jpeg";
+        if (name.endsWith(".gif")) return "image/gif";
+        if (name.endsWith(".ico")) return "image/x-icon";
+        if (name.endsWith(".woff2")) return "font/woff2";
+        if (name.endsWith(".woff")) return "font/woff";
+        if (name.endsWith(".ttf")) return "font/ttf";
+        if (name.endsWith(".md")) return "text/markdown";
+        if (name.endsWith(".py")) return "text/plain";
+        if (name.endsWith(".java")) return "text/plain";
+        if (name.endsWith(".yaml") || name.endsWith(".yml")) return "text/yaml";
+        return "text/plain";
+    }
+
     private ResponseEntity<?> serveFile(java.io.File file, String artifactId) {
-        try {
-            Path path = file.toPath();
-            String contentType = Files.probeContentType(path);
-            if (contentType == null) {
-                contentType = "application/octet-stream";
-            }
-            Resource resource = new FileSystemResource(file);
-            String encoded = URLEncoder.encode(file.getName(), StandardCharsets.UTF_8)
-                    .replace("+", "%20");
-            return ResponseEntity.ok()
-                    .contentType(MediaType.parseMediaType(contentType))
-                    .header(HttpHeaders.CONTENT_DISPOSITION,
-                            "inline; filename*=UTF-8''" + encoded)
-                    .body(resource);
-        } catch (IOException e) {
-            log.error("Failed to serve artifact file: id={}, name={}", artifactId, file.getName(), e);
-            return error(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR",
-                    "文件读取失败", "/artifacts/" + artifactId);
-        }
+        String contentType = mimeType(file.getName());
+        Resource resource = new FileSystemResource(file);
+        String encoded = URLEncoder.encode(file.getName(), StandardCharsets.UTF_8)
+                .replace("+", "%20");
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(contentType))
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "inline; filename*=UTF-8''" + encoded)
+                .body(resource);
     }
 
     private ResponseEntity<?> error(HttpStatus status, String errorCode,
