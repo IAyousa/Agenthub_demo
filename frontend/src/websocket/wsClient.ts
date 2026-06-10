@@ -27,7 +27,6 @@
  */
 
 import { Client, type IMessage } from '@stomp/stompjs'
-import SockJS from 'sockjs-client'
 
 // ============================================================================
 // 连接配置
@@ -133,7 +132,9 @@ class WsClient {
        * 这个工厂函数获取。这里返回 SockJS 实例，使得不支持 WebSocket
        * 的环境能降级为 HTTP long-polling。
        */
-      webSocketFactory: () => new SockJS(WS_ENDPOINT),
+      // 使用原生 WebSocket 替代 SockJS，避免 SockJS 帧缓冲导致流式消息被批量延迟投递
+      // 注意：/ws-chat 端点同时支持 SockJS 和原生 WebSocket（Spring 自动协商）
+      brokerURL: 'ws://localhost:8080/ws-chat',
 
       /** 断线后自动重连，首次延迟 5 秒 */
       reconnectDelay: RECONNECT_DELAY,
@@ -246,6 +247,9 @@ class WsClient {
         }
 
         // 普通流式 token（含 isComplete 标识）
+        // 跳过空内容的心跳/空帧消息（后台标签页可能收到浏览器发送的空 PONG 帧）
+        if (data.content === undefined && data.isComplete === undefined) return
+
         this.callbacks.onToken({
           content: data.content,
           isComplete: data.isComplete ?? false,
@@ -255,7 +259,9 @@ class WsClient {
           messageId: data.messageId,
         })
       } catch {
-        this.callbacks.onError('消息解析失败')
+        // 静默丢弃无效消息（后台标签页时浏览器可能收到空帧/心跳帧），
+        // 不弹红色 toast——只有真正的连接断开才提示用户
+        console.warn('[wsClient] Skip invalid message:', message.body?.substring(0, 100))
       }
     })
 

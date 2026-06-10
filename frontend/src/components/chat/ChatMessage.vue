@@ -17,8 +17,9 @@
         type === 'code' || type === 'artifact_preview' ? 'w-full p-0 overflow-hidden' : 'px-4 py-3',
         role === 'user' ? 'bg-gradient-to-br from-indigo-500 to-purple-600 text-white after:content-[\'\'] after:absolute after:top-4 after:-right-2 after:border-t-[7px] after:border-t-transparent after:border-b-[7px] after:border-b-transparent after:border-l-[7px] after:border-l-indigo-500' : 'bg-white text-gray-800 after:content-[\'\'] after:absolute after:top-4 after:-left-2 after:border-t-[7px] after:border-t-transparent after:border-b-[7px] after:border-b-transparent after:border-r-[7px] after:border-r-white'
       ]">
-        <!-- Text (rendered as Markdown) -->
-        <div v-if="type === 'text'" class="markdown-body" v-html="renderedContent"></div>
+        <!-- Text：流式传输中显示纯文本，完成后渲染 Markdown -->
+        <div v-if="type === 'text' && isStreaming" class="whitespace-pre-wrap text-[14px]" :style="{ wordBreak: 'break-word' }">{{ content }}</div>
+        <div v-else-if="type === 'text'" class="markdown-body" v-html="renderedContent"></div>
 
         <!-- Code -->
         <div v-else-if="type === 'code'" class="w-full overflow-hidden">
@@ -139,6 +140,9 @@ const props = defineProps<{
   content: string
   metadata?: Record<string, any>
 }>()
+
+/** 是否正在流式传输（ID 以 streaming_ 开头） */
+const isStreaming = computed(() => props.id.startsWith('streaming_'))
 
 // HTML 标签正则：防止 XSS 同时保留 markdown 语法
 const HTML_TAG_RE = /<(\/?[a-zA-Z][a-zA-Z0-9]*)/g

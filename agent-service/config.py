@@ -38,6 +38,12 @@ class Settings(BaseSettings):
     # 环境要求：需要设置 ANTHROPIC_API_KEY 环境变量
     CLAUDE_CLI_COMMAND: str = "claude"               # Claude Code CLI 命令名或绝对路径
     CLAUDE_CLI_ARGS: List[str] = []                  # 额外的 CLI 参数（如 ["--model", "claude-sonnet-4-20250514"]）
+    # stream-json 模式参数：实现逐 token 实时流式输出（必须配合 --print 和 --verbose）
+    CLAUDE_STREAM_ARGS: List[str] = [
+        "--output-format", "stream-json",
+        "--include-partial-messages",
+        "--verbose",
+    ]
 
     # ========== Codex 本地 CLI 配置 ==========
     # OpenAI Codex CLI 是 OpenAI 官方提供的本地 CLI Agent 工具

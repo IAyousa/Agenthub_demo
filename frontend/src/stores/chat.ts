@@ -171,6 +171,22 @@ export const useChatStore = defineStore('chat', () => {
   /** 用户选择的 Agent（用于下一条消息的路由） */
   const selectedAgentId = ref<string>('agent_claude_001')
 
+  /** 流式 token 队列 + 逐帧渲染定时器 */
+  let tokenQueue: string[] = []
+  let renderTimer: ReturnType<typeof setTimeout> | null = null
+
+  function flushTokenQueue(streamMsg: Message) {
+    if (tokenQueue.length === 0) return
+    // 每次取一个 token 渲染，制造逐字出现的视觉效果
+    const token = tokenQueue.shift()!
+    streamMsg.content += token
+    if (tokenQueue.length > 0) {
+      renderTimer = setTimeout(() => flushTokenQueue(streamMsg), 30)
+    } else {
+      renderTimer = null
+    }
+  }
+
   // ---- WebSocket 回调（定义在 setup 闭包中，捕获 store 方法）----
 
   const handleToken = (chunk: MessageChunk) => {
@@ -204,10 +220,15 @@ export const useChatStore = defineStore('chat', () => {
     }
 
     if (chunk.isComplete) {
-      streamMsg.id = chunk.messageId || streamMsg.id
+      // 先排空队列中剩余的 token
+      if (renderTimer) { clearTimeout(renderTimer); renderTimer = null }
+      while (tokenQueue.length > 0) {
+        streamMsg.content += tokenQueue.shift()!
+      }
       if (chunk.content && chunk.content !== streamMsg.content) {
         streamMsg.content = chunk.content
       }
+      streamMsg.id = chunk.messageId || streamMsg.id
       streamMsg.type = chunk.messageType === 'preview_card' ? 'artifact_preview'
         : (chunk.messageType as Message['type']) || 'text'
       if (chunk.messageType !== 'text' && streamMsg.metadata) {
@@ -216,13 +237,18 @@ export const useChatStore = defineStore('chat', () => {
       }
       streamingMessageId.value = null
       isLoading.value = false
+      tokenQueue = []
     } else {
-      streamMsg.content += chunk.content
+      tokenQueue.push(chunk.content)
       currentAgentId.value = chunk.agentId
       currentAgentName.value = chunk.agentName
       if (streamMsg.metadata) {
         streamMsg.metadata.agentId = chunk.agentId
         streamMsg.metadata.agentName = chunk.agentName
+      }
+      // 启动逐帧渲染
+      if (!renderTimer) {
+        flushTokenQueue(streamMsg)
       }
     }
   }
