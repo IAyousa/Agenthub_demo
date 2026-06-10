@@ -51,6 +51,13 @@
             </div>
           </div>
         </div>
+
+        <!-- Project Bundle -->
+        <ProjectBundleCard
+          v-else-if="type === 'project_bundle'"
+          :files="metadata?.files || []"
+          :download-url="downloadUrl"
+        />
       </div>
 
       <!-- Action bar (appears on hover) -->
@@ -69,6 +76,20 @@
           <ClipboardIcon :size="12" />
           <span>{{ copied ? '已复制' : '复制' }}</span>
         </button>
+        <button
+          v-if="role === 'assistant' && chatStore.currentConversationId"
+          @click="handleDownloadProject"
+          :disabled="downloadingProject"
+          class="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] text-gray-400 bg-white/80 hover:bg-white hover:text-emerald-500 hover:shadow-sm border border-gray-100 transition-all disabled:opacity-50"
+          :title="downloadingProject ? '下载中...' : '下载项目文件'"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          <span>{{ downloadingProject ? '下载中...' : '下载项目' }}</span>
+        </button>
       </div>
     </div>
   </div>
@@ -76,14 +97,14 @@
 
 <script setup lang="ts">
 import { computed, ref, onMounted, nextTick, watch } from 'vue'
-import { marked } from 'marked'
+import { marked, Tokens } from 'marked'
 import { ClipboardIcon, CheckIcon } from 'lucide-vue-next'
 import { createApp, h } from 'vue'
 
 // Custom marked renderer: DeepSeek-style code blocks with header bar
 const renderer = new marked.Renderer()
 const originalCode = renderer.code.bind(renderer)
-renderer.code = function(token: marked.Tokens.Code) {
+renderer.code = function(token: Tokens.Code) {
   const lang = token.lang || 'plaintext'
   const raw = originalCode(token)
   const id = `code-${Math.random().toString(36).slice(2, 8)}`
@@ -127,22 +148,31 @@ if (typeof document !== 'undefined') {
   })
 }
 import CodeEditor from './CodeEditor.vue'
+import ProjectBundleCard from './ProjectBundleCard.vue'
 import { useChatStore } from '../../stores/chat'
+import apiClient from '../../api/index'
 
 const chatStore = useChatStore()
 const copied = ref(false)
 const loadedCode = ref('')
+const downloadingProject = ref(false)
 
 const props = defineProps<{
   id: string
   role: 'user' | 'assistant' | 'system'
-  type: 'text' | 'code' | 'diff' | 'artifact_preview'
+  type: 'text' | 'code' | 'diff' | 'artifact_preview' | 'project_bundle'
   content: string
   metadata?: Record<string, any>
 }>()
 
 /** 是否正在流式传输（ID 以 streaming_ 开头） */
 const isStreaming = computed(() => props.id.startsWith('streaming_'))
+
+const downloadUrl = computed(() => {
+  const convId = chatStore.currentConversationId
+  if (!convId || props.type !== 'project_bundle') return undefined
+  return `/conversations/${convId}/download`
+})
 
 // HTML 标签正则：防止 XSS 同时保留 markdown 语法
 const HTML_TAG_RE = /<(\/?[a-zA-Z][a-zA-Z0-9]*)/g
@@ -204,6 +234,28 @@ const copyContent = async () => {
     setTimeout(() => { copied.value = false }, 2000)
   } catch {
     // fallback for older browsers
+  }
+}
+
+const handleDownloadProject = async () => {
+  const convId = chatStore.currentConversationId
+  if (!convId || downloadingProject.value) return
+  downloadingProject.value = true
+  try {
+    const resp = await apiClient.get(`/conversations/${convId}/download`, { responseType: 'blob' })
+    const blob = new Blob([resp.data], { type: 'application/zip' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `project-${convId}.zip`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  } catch (e) {
+    console.error('Download project failed:', e)
+  } finally {
+    downloadingProject.value = false
   }
 }
 

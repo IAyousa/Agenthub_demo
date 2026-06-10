@@ -155,6 +155,7 @@ class Orchestrator:
             return
 
         # Step 2: 按顺序执行每个子任务
+        had_error = False
         for i, step in enumerate(steps):
             agent_type = step.get("agent", "claude_code")
             task = step.get("task", message)
@@ -194,7 +195,15 @@ class Orchestrator:
 
             # 子 Agent 使用完整 system prompt
             sub_prompt = SYSTEM_PROMPTS.get(agent_type, "")
-            had_error = False
+            # 注入工作区隔离指令
+            if working_directory and working_directory != ".":
+                sub_prompt += (
+                    f"\n\n## 工作区隔离规则（必须严格遵守）\n"
+                    f"- 你的工作目录是: `{working_directory}`\n"
+                    f"- 你只能在工作目录内读写文件，严禁访问外部目录\n"
+                    f"- 严禁使用 cd .. 或绝对路径访问工作目录外的内容\n"
+                    f"- 所有文件操作必须在工作目录内进行"
+                )
 
             async for chunk in adapter.chat_stream(
                 message=task,
@@ -223,9 +232,18 @@ class Orchestrator:
                     "agent_name": "Claude Code (降级)",
                 }
                 fallback = self.factory.get_adapter("claude_code")
+                fallback_prompt = SYSTEM_PROMPTS.get("claude_code", "")
+                if working_directory and working_directory != ".":
+                    fallback_prompt += (
+                        f"\n\n## 工作区隔离规则（必须严格遵守）\n"
+                        f"- 你的工作目录是: `{working_directory}`\n"
+                        f"- 你只能在工作目录内读写文件，严禁访问外部目录\n"
+                        f"- 严禁使用 cd .. 或绝对路径访问工作目录外的内容\n"
+                        f"- 所有文件操作必须在工作目录内进行"
+                    )
                 async for chunk in fallback.chat_stream(
                     message=task,
-                    system_prompt=SYSTEM_PROMPTS.get("claude_code", ""),
+                    system_prompt=fallback_prompt,
                     history=[],
                     working_directory=working_directory,
                 ):

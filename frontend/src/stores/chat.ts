@@ -42,7 +42,7 @@ import {
 export interface Message {
   id: string
   role: 'user' | 'assistant' | 'system'
-  type: 'text' | 'code' | 'diff' | 'artifact_preview'
+  type: 'text' | 'code' | 'diff' | 'artifact_preview' | 'project_bundle'
   content: string
   created_at: string
   metadata?: Record<string, any>
@@ -103,6 +103,7 @@ export type AppView = 'chat' | 'office'
  */
 function decodeMessageType(apiType: string): Message['type'] {
   if (apiType === 'preview_card') return 'artifact_preview'
+  if (apiType === 'project_bundle') return 'project_bundle'
   if (apiType === 'text' || apiType === 'code' || apiType === 'diff') return apiType
   return 'text'
 }
@@ -207,7 +208,7 @@ export const useChatStore = defineStore('chat', () => {
       if (sendTimeout) { clearTimeout(sendTimeout); sendTimeout = null }
       // 第一条 token 到达时创建占位消息
       const newId = `streaming_${Date.now()}`
-      streamMsg = {
+      const newMsg: Message = {
         id: newId,
         role: 'assistant',
         type: 'text',
@@ -215,8 +216,10 @@ export const useChatStore = defineStore('chat', () => {
         created_at: new Date().toISOString(),
         metadata: { agentId: chunk.agentId, agentName: chunk.agentName },
       }
-      msgs.push(streamMsg)
+      msgs.push(newMsg)
       streamingMessageId.value = newId
+      // 从 reactive 数组中取回 Proxy 引用，确保后续 content 修改触发响应式更新
+      streamMsg = msgs[msgs.length - 1]
     }
 
     if (chunk.isComplete) {
@@ -230,10 +233,15 @@ export const useChatStore = defineStore('chat', () => {
       }
       streamMsg.id = chunk.messageId || streamMsg.id
       streamMsg.type = chunk.messageType === 'preview_card' ? 'artifact_preview'
+        : chunk.messageType === 'project_bundle' ? 'project_bundle'
         : (chunk.messageType as Message['type']) || 'text'
       if (chunk.messageType !== 'text' && streamMsg.metadata) {
         streamMsg.metadata.agentId = chunk.agentId
         streamMsg.metadata.agentName = chunk.agentName
+      }
+      // project_bundle: store files list from WebSocket metadata
+      if (chunk.messageType === 'project_bundle' && chunk.metadata?.files) {
+        streamMsg.metadata = { ...chunk.metadata }
       }
       streamingMessageId.value = null
       isLoading.value = false
@@ -335,23 +343,56 @@ export const useChatStore = defineStore('chat', () => {
       const messages: Message[] = msgRes.data.messages.map(mapApiMessage).reverse()
       // API returns newest-first (DESC); reverse to display oldest-first in chat UI
 
-      // Merge artifacts as preview_card messages
+      // Merge artifacts: group by messageId → project_bundle for shared batches,
+      // fall back to individual artifact_preview cards for orphan artifacts
       const artifacts = artRes.data.artifacts || []
+      const byMessageId = new Map<string, typeof artifacts>()
       for (const a of artifacts) {
-        const ext = (a.filename || '').split('.').pop()?.toLowerCase() || 'plaintext'
-        messages.push({
-          id: `artifact-${a.id}`,
-          role: 'assistant' as const,
-          type: 'artifact_preview' as const,
-          content: a.filename,
-          created_at: a.createdAt,
-          metadata: {
-            title: a.filename,
-            language: ext,
-            previewUrl: `/artifacts/${a.id}`,
+        const key = a.messageId || `_lonely_${a.id}`
+        if (!byMessageId.has(key)) byMessageId.set(key, [])
+        byMessageId.get(key)!.push(a)
+      }
+      for (const [msgId, group] of byMessageId) {
+        if (group.length >= 2 && msgId && !msgId.startsWith('_lonely_')) {
+          // Multiple artifacts share the same messageId → aggregate as project_bundle
+          const files = group.map(a => ({
             artifactId: a.id,
-          },
-        })
+            filename: a.filename,
+            path: a.filename,
+            language: (a.filename || '').split('.').pop()?.toLowerCase() || 'plaintext',
+            previewUrl: `/artifacts/${a.id}`,
+            size: a.fileSize,
+          }))
+          messages.push({
+            id: `bundle-${msgId}`,
+            role: 'assistant' as const,
+            type: 'project_bundle' as const,
+            content: `项目成果（${files.length} 个文件）`,
+            created_at: group[0].createdAt,
+            metadata: {
+              files,
+              downloadUrl: `/conversations/${conversationId}/download`,
+            },
+          })
+        } else {
+          // Orphan artifact or legacy (no messageId) → keep as individual preview cards
+          for (const a of group) {
+            const ext = (a.filename || '').split('.').pop()?.toLowerCase() || 'plaintext'
+            messages.push({
+              id: `artifact-${a.id}`,
+              role: 'assistant' as const,
+              type: 'artifact_preview' as const,
+              content: a.filename,
+              created_at: a.createdAt,
+              metadata: {
+                title: a.filename,
+                language: ext,
+                previewUrl: `/artifacts/${a.id}`,
+                artifactId: a.id,
+              },
+            })
+          }
+        }
       }
       // Sort by created_at to interleave artifacts with messages
       messages.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())

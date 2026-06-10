@@ -9,6 +9,18 @@ export default defineConfig({
     vue(),
     tailwindcss(),
   ],
+  server: {
+    proxy: {
+      '/artifacts': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
+      '/conversations': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
+    },
+  },
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url))

@@ -63,8 +63,9 @@ export interface MessageChunk {
   isComplete: boolean
   agentId: string
   agentName: string
-  messageType: 'text' | 'code' | 'diff' | 'preview_card' | 'error'
+  messageType: 'text' | 'code' | 'diff' | 'preview_card' | 'project_bundle' | 'error'
   messageId?: string   // 仅在 isComplete=true 时存在
+  metadata?: Record<string, any>  // 额外元数据（如 project_bundle 的 files 列表）
 }
 
 /**
@@ -257,6 +258,7 @@ class WsClient {
           agentName: data.agentName ?? '',
           messageType: data.messageType ?? 'text',
           messageId: data.messageId,
+          metadata: data.metadata,
         })
       } catch {
         // 静默丢弃无效消息（后台标签页时浏览器可能收到空帧/心跳帧），
