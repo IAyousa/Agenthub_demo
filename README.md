@@ -6,7 +6,7 @@ AgentHub 是一个仿微信 PC 端交互风格的多 Agent 协作平台。用户
 
 - **IM 风格布局**：经典三栏式设计（会话列表 + 聊天窗口 + 代码预览）
 - **多 Agent 协作**：Orchestrator 自动分析任务 → 分派给 Claude Code / Codex → 流式返回
-- **Artifact 预览**：Agent 生成的 HTML/JS/CSS 代码自动检测并生成 iframe 实时预览
+- **Artifact 预览**：产物自动检测 → 统一项目文件树卡片（ProjectBundleCard）→ iframe 实时预览 + 一键 ZIP 下载
 - **Monaco Editor**：内嵌 VS Code 同款编辑器，支持语法高亮与自适应布局
 - **JWT 认证**：Spring Security + jjwt 无状态认证，开发环境零配置
 - **双数据库支持**：默认 H2 文件数据库（零依赖），可选 PostgreSQL Profile
@@ -85,6 +85,7 @@ agenthub/
 │   └── pom.xml               # Maven 配置
 ├── agent-service/            # Python FastAPI Agent 服务
 │   ├── adapters/             # LLM 适配器 (Claude, Codex)
+│   ├── app/utils/            # 产物检测上传 + 工作区文件扫描
 │   ├── prompts/              # System Prompt 模板
 │   ├── orchestrator.py       # 多 Agent 任务编排器
 │   └── main.py               # FastAPI 入口
