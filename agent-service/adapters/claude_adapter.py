@@ -157,6 +157,7 @@ class ClaudeAdapter(BaseAdapter):
         claude_message_id: Optional[str] = None
         claude_session_id: Optional[str] = None
         has_error = False
+        has_content = False  # 是否至少产生过一条 msg_chunk
         msg_ended = False  # 是否已发送 msg_end
 
         async def read_stderr():
@@ -222,6 +223,7 @@ class ClaudeAdapter(BaseAdapter):
                                 # 逐 token 文本增量 → msg_chunk
                                 text = delta.get("text", "")
                                 if text:
+                                    has_content = True
                                     yield {
                                         "type": "msg_chunk",
                                         "message_id": message_id,
@@ -295,8 +297,15 @@ class ClaudeAdapter(BaseAdapter):
             except asyncio.CancelledError:
                 pass
 
-        # 如果流没有正常关闭（没收到 assistant 事件），补发 msg_end
+        # 如果流没有正常关闭，补发 msg_end。
+        # 前提：至少产生过内容；否则先发一条友好提示避免 Java 端误判无响应
         if not has_error and not msg_ended:
+            if not has_content:
+                yield {
+                    "type": "msg_chunk",
+                    "message_id": message_id,
+                    "delta": "（Agent 已完成处理，未产生文本输出）",
+                }
             yield {
                 "type": "msg_end",
                 "message_id": message_id,

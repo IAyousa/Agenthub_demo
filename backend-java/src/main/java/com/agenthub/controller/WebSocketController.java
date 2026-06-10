@@ -1,4 +1,4 @@
-﻿package com.agenthub.controller;
+package com.agenthub.controller;
 
 import com.agenthub.dto.SendMessageRequest;
 import com.agenthub.model.Agent;
@@ -10,14 +10,15 @@ import com.agenthub.service.AgentGatewayService;
 import com.agenthub.service.MessageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
 
 import java.util.*;
-
-import org.springframework.beans.factory.annotation.Value;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Controller
@@ -112,36 +113,45 @@ public class WebSocketController {
 
                 if (token.isFinish()) {
                     if (receivedTokens[0]) {
+                        // 正常路径：已收到 token，直接保存并推送完成
                         log.info("Agent response completed: {} chars, conversationId={}",
                                 fullResponse.length(), conversationId);
                         try {
                             messageService.saveMessage(conversationId, "system", "assistant",
                                     fullResponse.toString(), "text", getAgentName(agentType));
                         } catch (IllegalArgumentException e) {
-                            // 会话可能在 Agent 回复期间被删除，跳过保存
                             log.info("Skip saving agent response — conversation already deleted: id={}", conversationId);
                         }
+                        pushFinish(topic, agentType, token);
                     } else {
-                        // Agent returned no tokens — send fallback response
-                        log.info("No tokens from agent, sending fallback to topic={}", topic);
-                        Map<String, Object> fallback = new LinkedHashMap<>();
-                        fallback.put("type", "chunk");
-                        fallback.put("content", "你好！我是 AgentHub 的 AI 助手。当前 Agent 服务尚未连接 CLI 工具，这是一条来自 Java 后端的测试回复，验证 WebSocket → STOMP → 前端的消息推送链路正常工作。");
-                        fallback.put("isComplete", false);
-                        fallback.put("agentId", "agent_system");
-                        fallback.put("agentName", "System");
-                        fallback.put("messageType", "text");
-                        messagingTemplate.convertAndSend(topic, fallback);
+                        // 还没收到 token 就 finish 了 — 延迟 2s 确认（给慢启动的 Agent 时间）
+                        log.info("Finish before any token — scheduling delayed fallback check, topic={}", topic);
+                        final String agentName = getAgentName(agentType);
+                        CompletableFuture.delayedExecutor(2, TimeUnit.SECONDS).execute(() -> {
+                            if (receivedTokens[0]) {
+                                // 延迟期间 token 到达了 → 正常保存
+                                log.info("Tokens arrived during delay window, saving normally");
+                                try {
+                                    messageService.saveMessage(conversationId, "system", "assistant",
+                                            fullResponse.toString(), "text", agentName);
+                                } catch (IllegalArgumentException e) {
+                                    log.info("Skip saving — conversation deleted: id={}", conversationId);
+                                }
+                            } else {
+                                // 确实没有 token → 发送 fallback
+                                log.info("Still no tokens after delay, sending fallback to topic={}", topic);
+                                Map<String, Object> fallback = new LinkedHashMap<>();
+                                fallback.put("type", "chunk");
+                                fallback.put("content", "你好！我是 AgentHub 的 AI 助手。当前 Agent 服务尚未连接 CLI 工具，这是一条来自 Java 后端的测试回复，验证 WebSocket → STOMP → 前端的消息推送链路正常工作。");
+                                fallback.put("isComplete", false);
+                                fallback.put("agentId", "agent_system");
+                                fallback.put("agentName", "System");
+                                fallback.put("messageType", "text");
+                                messagingTemplate.convertAndSend(topic, fallback);
+                            }
+                            pushFinish(topic, agentType, token);
+                        });
                     }
-
-                    Map<String, Object> finish = new LinkedHashMap<>();
-                    finish.put("type", "finish");
-                    finish.put("content", "");
-                    finish.put("isComplete", true);
-                    finish.put("agentId", "agent_" + agentType);
-                    finish.put("messageId", token.getMessageId() != null ? token.getMessageId() : "");
-                    finish.put("messageType", "text");
-                    messagingTemplate.convertAndSend(topic, finish);
                 }
             } catch (Exception e) {
                 log.error("Failed to push chunk", e);
@@ -171,6 +181,17 @@ public class WebSocketController {
     // Agent routing is resolved from DB in Step 2 of handleUserMessage.
     // MVP default: agent_claude_001 for all conversations.
     // Full routing (direct → session agent, group → orchestrator) is P2 scope.
+
+    private void pushFinish(String topic, String agentType, AgentGatewayService.AgentToken token) {
+        Map<String, Object> finish = new LinkedHashMap<>();
+        finish.put("type", "finish");
+        finish.put("content", "");
+        finish.put("isComplete", true);
+        finish.put("agentId", agentType != null ? "agent_" + agentType : "agent_orchestrator");
+        finish.put("messageId", token.getMessageId() != null ? token.getMessageId() : "");
+        finish.put("messageType", "text");
+        messagingTemplate.convertAndSend(topic, finish);
+    }
 
     private String getAgentName(String agentType) {
         if (agentType == null) return "Orchestrator";
