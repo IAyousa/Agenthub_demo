@@ -1,7 +1,7 @@
 # AgentHub 技术框架文档 — API 契约定义与通信协议规范
 
-> **版本**: v1.1
-> **最后更新**: 2026-06-09
+> **版本**: v1.2
+> **最后更新**: 2026-06-10
 
 ---
 
@@ -538,7 +538,7 @@ Agent 生成代码 → Python Agent 服务接收 stdout
 |--------|----|
 | 协议 | STOMP over WebSocket |
 | 连接端点 | **http://localhost:8080/ws-chat** |
-| 降级方案 | SockJS（/ws-chat 不可用时自动降级，自动追加 `/info` 后缀检测可用性） |
+| WebSocket 模式 | 支持原生 WebSocket（`ws://localhost:8080/ws-chat`，无帧缓冲）和 SockJS（`http://localhost:8080/ws-chat` + `/info`）双模式 |
 | 心跳 | 客户端自动发送，默认 10 秒间隔 |
 | STOMP 消息前缀 | `/app` |
 | 订阅主题模式 | `/topic/conversation.{conversationId}` |
@@ -562,7 +562,8 @@ Agent 生成代码 → Python Agent 服务接收 stdout
 |------|------|------|------|
 | conversationId | string | 是 | 目标会话 ID |
 | content | string | 是 | 消息文本内容 |
-> **注意**：前端不再传递 `agentType` 和 `systemPrompt`。Agent 调度由 Orchestrator 在 Python 层自动完成，前端不感知任务拆分过程。
+| agentId | string | 否 | direct 模式下指定 Agent ID（群聊模式下由 Orchestrator 自动编排） |
+> **注意**：前端不再传递 `agentType` 和 `systemPrompt`。`agentId` 为可选字段，direct 模式由前端指定，group 模式由 Orchestrator 在 Python 层自动调度。
 #### 3.3.2 接收消息（后端 → 前端）
 ##### 订阅地址: `/topic/conversation.{conversationId}`
 ##### 消息块格式（MessageChunk，当前代码实际定义）：

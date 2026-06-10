@@ -38,21 +38,26 @@ frontend/                          # Vue 3 Frontend — ~90% complete
 │   ├── router/
 │   │   └── index.ts               # Vue Router 4: / → redirect /chat/conv_frontend_001, /chat/:conversationId (ChatView), /office (lazy OfficeView)
 │   ├── stores/chat.ts             # Pinia store: conversations, conversationList, agents, offices, artifact state, WebSocket send/stream callbacks
+│   ├── stores/settings.ts          # Pinia store: global theme (4 presets), CSS variable injection, scrollbar JS fix, localStorage persistence
+│   ├── stores/auth.ts              # Pinia store: JWT token management, auth state, login/register/logout
 │   ├── websocket/
-│   │   └── wsClient.ts            # STOMP client singleton: connect/subscribe/sendMessage via SockJS, auto-reconnect, heartbeat
+│   │   └── wsClient.ts            # STOMP client singleton: connect/subscribe/sendMessage via native WebSocket, auto-reconnect, heartbeat
 │   ├── views/
 │   │   ├── ChatView.vue           # Route container: watch route.params → selectConversation() {immediate}, onMounted → initWebSocket()
 │   │   └── OfficeView.vue         # Thin wrapper around office/OfficeView.vue component
 │   └── components/
 │       ├── chat/
-│       │   ├── ChatList.vue       # Conversation list: search, create btn, route push on select, agent tags, relative time
-│       │   ├── ChatWindow.vue     # Main chat area: header + message list + MessageInput. Real WebSocket/STOMP send, offline toast
-│       │   ├── ChatMessage.vue    # Message bubble (text/code/artifact_preview), avatar, click→artifact overlay
+│       │   ├── ChatList.vue       # Conversation list: search, create btn (→CreateConversationModal), route push on select, agent tags, relative time
+│       │   ├── ChatWindow.vue     # Main chat area: header + message list + MessageInput. Real WebSocket/STOMP send, offline toast. Agent dropdown REMOVED
+│       │   ├── ChatMessage.vue    # Message bubble (text/code/artifact_preview), avatar, click→artifact overlay, streaming plain-text mode
 │       │   ├── MessageInput.vue   # Shared input: toolbar + textarea + send btn, emits 'send'. Keyed by conversationId for auto-clear
+│       │   ├── CreateConversationModal.vue # Teleport modal: title + type(direct/group) + agent selection (dropdown/checkboxes)
 │       │   ├── CodeEditor.vue     # Monaco Editor: vs-dark, copy btn, ResizeObserver, reactive code/lang props
 │       │   ├── ArtifactSandbox.vue # Iframe sandbox (srcdoc), HTML/CSS/JS/TS preview with error handling
 │       │   └── ArtifactWindow.vue  # Full-screen overlay: preview/code toggle, back button
-│       ├── layout/SideBar.vue     # Left nav (dark indigo): chat/office/settings icons, useRoute/useRouter for active state
+│       ├── layout/
+│       │   ├── SideBar.vue         # Left nav (theme gradient): chat/office/settings icons + logout, useRoute/useRouter for active state
+│       │   └── ThemeSettingsModal.vue # Teleport modal: 4 theme presets (modern/ocean/forest/sunset) with color swatches
 │       └── office/
 │           ├── OfficeView.vue     # SVG office: 8 seats, 3D desks, door, plant decor, GSAP kick/walk, invite panel, multi-office management
 │           ├── CreateOfficeModal.vue # Modal for creating new office rooms (name/description/maxMembers/theme)
@@ -100,12 +105,12 @@ backend-java/                      # Spring Boot — ~75% complete (data + servi
 agent-service/                     # FastAPI — ~92% complete, stateless gateway, no DB access
 ├── main.py                        # FULL: FastAPI app, CORS, /api/agent router, global error handlers, /health. Windows: default ProactorEventLoop
 ├── models.py                      # FULL: AgentChatRequest (agentType Optional[str] for Orchestrator), AgentChatResponse, HealthResponse, ErrorResponse
-├── config.py                      # FULL: pydantic-settings + AGENT_REGISTRY + CODEX_SKIP_GIT_CHECK + AGENT_WORKSPACE_ROOT, CLI commands, timeout 300s
+├── config.py                      # FULL: pydantic-settings + AGENT_REGISTRY + CLAUDE_STREAM_ARGS + CODEX_SKIP_GIT_CHECK + AGENT_WORKSPACE_ROOT, CLI commands, timeout 300s
 ├── orchestrator.py                # FULL: LLM驱动的多Agent编排器 — Claude分析意图→JSON计划→串行调度→三层降级
 ├── adapters/
 │   ├── base_adapter.py            # FULL: strip_ansi(), build_prompt(), chat_stream() abstract, session_created event contract
 │   ├── adapter_factory.py         # FULL: ADAPTER_MAP {claude_code, codex, custom} → ValueError on unknown type
-│   ├── claude_adapter.py          # FULL: claude -p (1st) / claude --continue -p (subsequent), cwd=workspace, is_first_message tracking
+│   ├── claude_adapter.py          # FULL: claude -p --output-format stream-json --include-partial-messages --verbose (逐token实时流式), --continue会话延续, cwd=workspace, text_delta解析+thinking_delta过滤+message_stop→msg_end
 │   └── codex_adapter.py           # FULL: codex exec (1st, session_created) / codex exec resume --last (subsequent), session ID extraction, stderr diagnostics
 ├── prompts/
 │   └── system_prompts.py          # FULL: 8 role prompts, positive guidance (直接输出代码), no "permission" wording
@@ -138,20 +143,23 @@ docker-compose.yml                  # PostgreSQL 15-alpine 本地开发容器
 
 ## Current State Summary
 
-### Frontend — ~95% (UI + routing + WebSocket + REST API + Markdown + agent selection all done)
+### Frontend — ~95% (UI + routing + WebSocket + REST API + Markdown + agent selection + theme system + auth all done)
 - Vue Router 4: `/chat/:conversationId` (ChatView), `/office` (lazy), root redirect
 - 3-col IM layout: SideBar + ChatList (hover delete, search, create) + ChatWindow (auto-scroll, MessageInput decoupled)
 - Message types: text (Markdown rendered, code blocks with copy button) / code (Monaco Editor) / artifact_preview (click→full-screen overlay, refresh-safe)
-- **Agent selection**: ChatWindow header dropdown to switch between Claude Code / Codex, sends agentId via STOMP
+- **Agent selection**: Moved to CreateConversationModal (type toggle direct/group + agent dropdown/checkboxes), selected agent stored in Pinia, sent via STOMP
 - **Markdown rendering**: messages parsed with `marked`, full styling for headings/code blocks/tables/blockquotes
 - **Code blocks**: DeepSeek-style dark theme header bar with language label + copy button
 - **Message actions**: hover action bar (copy button), extensible container for future buttons
 - **Conversation delete**: hover X button on ChatList items, store handles API + local cleanup + auto-navigate
 - **C7 complete**: ChatWindow connected to real STOMP/WebSocket, replaced setTimeout mock
+- **Theme system**: 4 presets (modern/ocean/forest/sunset) via Tailwind @theme + CSS variables, scrollbar JS workaround, localStorage persistence
+- **Auth**: LoginView (login/register), JWT token in localStorage, axios interceptor auto-attach, logout clears state + WebSocket
 - **REST API connected**: conversation/agent list, message history, artifact list (refresh-safe preview cards)
 - WebSocket initialized in `ChatView.onMounted`, `sendMessage()` checks `ws.connected` — sends via WS or shows offline toast
 - All API calls gracefully degrade to mock data on failure
 - **Artifact preview pipeline complete**: Agent code → Python detection → /internal/artifacts → preview_card → ArtifactSandbox iframe
+- **Streaming output**: Claude CLI `--output-format=stream-json` + `--include-partial-messages` 实时逐token输出，Python异步解析text_delta→SSE→STOMP→前端tokenQueue 30ms逐帧渲染，原生WebSocket避免SockJS帧缓冲延迟
 - **Pending**: agent settings panel (conversation-scoped agent configuration)
 
 ### Backend Java — ~75% (data + service + REST + WebSocket + artifact + JWT auth + PG Profile all done)
