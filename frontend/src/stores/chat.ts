@@ -23,6 +23,7 @@ import {
   createConversation as apiCreateConversation,
   deleteConversation as apiDeleteConversation,
   getConversationArtifacts,
+  updateConversationAgents,
   type ConversationListItem,
   type MessageItem,
 } from '../api/conversation'
@@ -756,7 +757,27 @@ export const useChatStore = defineStore('chat', () => {
     return 0
   }
 
-  function inviteMember(userId: string, targetSeatIdx?: number) {
+  /** 从办公室成员中提取 Agent ID 列表（排除 owner 和普通用户） */
+  function extractAgentIds(): string[] {
+    if (!currentOffice.value) return []
+    return currentOffice.value.members
+      .filter(m => m.id.startsWith('agent_'))
+      .map(m => m.id)
+  }
+
+  /** 同步办公室成员变更到后端会话 */
+  async function syncOfficeAgentsToConversation() {
+    const office = currentOffice.value
+    if (!office?.conversationId) return
+    try {
+      const agentIds = extractAgentIds()
+      await updateConversationAgents(office.conversationId, { agentIds })
+    } catch {
+      // API 不可用时静默失败，本地状态已更新
+    }
+  }
+
+  async function inviteMember(userId: string, targetSeatIdx?: number) {
     if (!currentOffice.value) return
     let user = currentOffice.value.availableUsers.find(u => u.id === userId)
     if (!user) user = officeAvailableAgents.value.find(u => u.id === userId)
@@ -764,15 +785,17 @@ export const useChatStore = defineStore('chat', () => {
       const emptySeat = targetSeatIdx !== undefined ? targetSeatIdx : findEmptySeat()
       currentOffice.value.members.push({ ...user, lastActive: '刚刚', seatIndex: emptySeat })
       currentOffice.value.availableUsers = currentOffice.value.availableUsers.filter(u => u.id !== userId)
+      await syncOfficeAgentsToConversation()
     }
   }
 
-  function removeMember(memberId: string) {
+  async function removeMember(memberId: string) {
     if (!currentOffice.value) return
     const member = currentOffice.value.members.find(m => m.id === memberId)
     if (member && member.role !== 'owner') {
       currentOffice.value.members = currentOffice.value.members.filter(m => m.id !== memberId)
       currentOffice.value.availableUsers.push({ ...member, isInviting: false, isRemoving: false })
+      await syncOfficeAgentsToConversation()
     }
   }
 
