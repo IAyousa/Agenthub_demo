@@ -125,12 +125,23 @@ const scrollToBottom = async () => {
   }
 }
 
-// Watch for message changes to scroll
+// 新消息 → 滚动
 watch(() => currentMessages.value.length, () => {
   scrollToBottom()
-}, { deep: true })
+})
 
-// Watch for loading state to scroll when agent starts/stops thinking
+// 流式输出中 token 追加 → 内容变长 → 自动滚动跟随
+watch(
+  () => {
+    const msgs = currentMessages.value
+    return msgs.length > 0 ? msgs[msgs.length - 1].content.length : 0
+  },
+  () => {
+    scrollToBottom()
+  }
+)
+
+// 加载状态变化 → 滚动
 watch(isLoading, (loading) => {
   if (loading) {
     scrollToBottom()
