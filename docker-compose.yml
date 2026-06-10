@@ -1,22 +1,95 @@
-# AgentHub — PostgreSQL 本地开发容器
+# ================================================================
+# AgentHub — Docker Compose 编排 (4 服务)
+# ================================================================
 # 启动: docker-compose up -d
 # 停止: docker-compose down
-# 数据持久化于 named volume postgres_data
+# 查看日志: docker-compose logs -f
+# ================================================================
 
 services:
+  # ==========================================
+  # 1. Nginx — 前端静态文件 + API 反代
+  # ==========================================
+  nginx:
+    build:
+      context: ./frontend
+      args:
+        # 空值 → 前端使用相对路径（由 nginx 反代处理 API 请求）
+        VITE_API_BASE_URL: ""
+    container_name: agenthub-nginx
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - agenthub-net
+
+  # ==========================================
+  # 2. Spring Boot — Java 后端
+  # ==========================================
+  backend:
+    build:
+      context: ./backend-java
+    container_name: agenthub-backend
+    environment:
+      JWT_SECRET: ${JWT_SECRET:-agent-hub-prod-change-me}
+      AGENT_SERVICE_URL: http://agent:8000
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost}
+      JAVA_OPTS: "-Xmx512m -Xms256m"
+    volumes:
+      - agenthub_h2:/data/h2
+      - agenthub_artifacts:/data/artifacts
+      - agenthub_workspaces:/data/workspaces
+    restart: unless-stopped
+    networks:
+      - agenthub-net
+
+  # ==========================================
+  # 3. FastAPI — Python Agent 服务
+  # ==========================================
+  agent:
+    build:
+      context: ./agent-service
+    container_name: agenthub-agent
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      BACKEND_URL: http://backend:8080
+      AGENT_WORKSPACE_ROOT: /data/workspaces
+    volumes:
+      - agenthub_workspaces:/data/workspaces
+    restart: unless-stopped
+    networks:
+      - agenthub-net
+
+  # ==========================================
+  # 4. PostgreSQL（可选 — 使用 PG Profile 时启用）
+  # ==========================================
   postgres:
     image: postgres:15-alpine
     container_name: agenthub-postgres
     environment:
       POSTGRES_DB: agenthub
       POSTGRES_USER: agenthub
-      POSTGRES_PASSWORD: agenthub123
+      POSTGRES_PASSWORD: ${PG_PASSWORD:-agenthub123}
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - agenthub_pg:/var/lib/postgresql/data
     restart: unless-stopped
+    networks:
+      - agenthub-net
+    # 默认注释掉，需要时取消注释
+    profiles:
+      - pg
+
+networks:
+  agenthub-net:
+    driver: bridge
 
 volumes:
-  postgres_data:
-    driver: local
+  agenthub_h2:
+  agenthub_artifacts:
+  agenthub_workspaces:
+  agenthub_pg:

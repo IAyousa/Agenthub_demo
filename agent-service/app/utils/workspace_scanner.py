@@ -48,7 +48,10 @@ _LANGUAGE_MAP = {
 
 # 全局快照存储
 _workspace_snapshots: Dict[str, Dict[str, str]] = {}
-_JAVA_BATCH_URL = "http://localhost:8080/internal/artifacts/batch"
+def _java_batch_url() -> str:
+    """Java 批量上传端点 URL，从全局配置读取后端地址。"""
+    from config import settings
+    return f"{settings.BACKEND_URL}/internal/artifacts/batch"
 
 
 def _ext(filename: str) -> str:
@@ -131,7 +134,7 @@ async def upload_files_batch(
 
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.post(_JAVA_BATCH_URL, json=batch_payload)
+            resp = await client.post(_java_batch_url(), json=batch_payload)
         if resp.status_code in (200, 201):
             result = resp.json()
             # Java 返回 {"files": [...], "total": N}，提取 files 数组

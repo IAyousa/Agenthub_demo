@@ -66,7 +66,11 @@ _FILENAME_HINT_RE = re.compile(
     re.IGNORECASE,
 )
 
-_JAVA_BATCH_URL = "http://localhost:8080/internal/artifacts/batch"
+def _java_batch_url() -> str:
+    """Java 批量上传端点 URL，从全局配置读取后端地址。"""
+    from config import settings
+    return f"{settings.BACKEND_URL}/internal/artifacts/batch"
+
 
 _PREVIEW_LOOKBACK_CHARS = 300  # 在代码块前查找文件名提示的字符数
 
@@ -219,7 +223,7 @@ async def detect_and_upload(
 
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.post(_JAVA_BATCH_URL, json=batch_payload)
+            resp = await client.post(_java_batch_url(), json=batch_payload)
         if resp.status_code in (200, 201):
             result = resp.json()
             if isinstance(result, dict):

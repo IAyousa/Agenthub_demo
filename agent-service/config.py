@@ -60,6 +60,7 @@ class Settings(BaseSettings):
     AGENT_TIMEOUT: int = 300                          # 单次 Agent 任务超时（秒），CLI 可能执行文件操作等耗时任务
     AGENT_WORKING_DIRECTORY: str = "."                # Agent CLI 执行任务的默认工作目录（fallback，不传 workingDirectory 时使用）
     AGENT_WORKSPACE_ROOT: str = os.path.join(os.path.expanduser("~"), "agenthub_workspaces")  # 工作区根目录（项目目录之外），每会话一个子目录
+    BACKEND_URL: str = "http://localhost:8080"          # Java 后端地址，Docker 中覆盖为 http://backend:8080
 
     # ========== Agent 注册表（Fallback 缓存） ==========
     # 这是 Python 端的 Agent 元数据缓存，用于以下场景：
