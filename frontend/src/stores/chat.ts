@@ -665,10 +665,28 @@ export const useChatStore = defineStore('chat', () => {
     // Remove offices whose conversation no longer exists
     const existingConvIds = new Set(conversationList.value.filter(c => c.type === 'group').map(c => c.id))
     offices.value = offices.value.filter(o => !o.conversationId || existingConvIds.has(o.conversationId))
+
     // Add offices for group conversations not yet represented
     for (const conv of conversationList.value) {
       if (conv.type !== 'group') continue
       if (offices.value.some(o => o.conversationId === conv.id)) continue
+
+      // 从 conv.agentNames 匹配 store 中已加载的 agents，还原成员信息
+      const agentMembers: OfficeMember[] = (conv.agentNames || [])
+        .map((name, i) => {
+          const agent = agents.value.find(a => a.name === name)
+          const agentId = agent?.id || `agent-unknown-${i}`
+          return {
+            id: agentId,
+            name,
+            avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(name)}`,
+            role: 'member' as const,
+            status: 'online' as const,
+            lastActive: '刚刚',
+            seatIndex: i + 1,
+          }
+        })
+
       offices.value.push({
         id: `office-synced-${conv.id}`,
         name: conv.title,
@@ -679,9 +697,33 @@ export const useChatStore = defineStore('chat', () => {
         ownerId: '1',
         members: [
           { id: '1', name: '你', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix', role: 'owner', status: 'online', lastActive: '刚刚' },
+          ...agentMembers,
         ],
         availableUsers: [],
       })
+    }
+
+    // 已有办公室但成员数只有 1（仅 owner）→ 补充同步 agent 成员
+    for (const office of offices.value) {
+      if (!office.conversationId) continue
+      if (office.members.length > 1) continue
+      const conv = conversationList.value.find(c => c.id === office.conversationId)
+      if (!conv || !conv.agentNames?.length) continue
+      const agentMembers: OfficeMember[] = conv.agentNames
+        .map((name, i) => {
+          const agent = agents.value.find(a => a.name === name)
+          const agentId = agent?.id || `agent-unknown-${i}`
+          return {
+            id: agentId,
+            name,
+            avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(name)}`,
+            role: 'member' as const,
+            status: 'online' as const,
+            lastActive: '刚刚',
+            seatIndex: (office.members.length + i),
+          }
+        })
+      office.members.push(...agentMembers)
     }
   }
 
