@@ -206,20 +206,34 @@ export const useChatStore = defineStore('chat', () => {
     if (!streamMsg) {
       // 清除响应超时定时器
       if (sendTimeout) { clearTimeout(sendTimeout); sendTimeout = null }
-      // 第一条 token 到达时创建占位消息
-      const newId = `streaming_${Date.now()}`
-      const newMsg: Message = {
-        id: newId,
-        role: 'assistant',
-        type: 'text',
-        content: '',
-        created_at: new Date().toISOString(),
-        metadata: { agentId: chunk.agentId, agentName: chunk.agentName },
+
+      // 检查最后一条 assistant 消息是否是最近（10s内）创建的
+      // 若是则复用——处理刷新后延迟 WS token 与已入库消息的竞态
+      const lastMsg = msgs[msgs.length - 1]
+      if (lastMsg && lastMsg.role === 'assistant' && lastMsg.type === 'text') {
+        const age = Date.now() - new Date(lastMsg.created_at).getTime()
+        if (age < 10000) {
+          streamingMessageId.value = lastMsg.id
+          streamMsg = lastMsg
+        }
       }
-      msgs.push(newMsg)
-      streamingMessageId.value = newId
-      // 从 reactive 数组中取回 Proxy 引用，确保后续 content 修改触发响应式更新
-      streamMsg = msgs[msgs.length - 1]
+
+      if (!streamMsg) {
+        // 第一条 token 到达时创建占位消息
+        const newId = `streaming_${Date.now()}`
+        const newMsg: Message = {
+          id: newId,
+          role: 'assistant',
+          type: 'text',
+          content: '',
+          created_at: new Date().toISOString(),
+          metadata: { agentId: chunk.agentId, agentName: chunk.agentName },
+        }
+        msgs.push(newMsg)
+        streamingMessageId.value = newId
+        // 从 reactive 数组中取回 Proxy 引用，确保后续 content 修改触发响应式更新
+        streamMsg = msgs[msgs.length - 1]
+      }
     }
 
     if (chunk.isComplete) {
