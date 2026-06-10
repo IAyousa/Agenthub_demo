@@ -18,6 +18,7 @@ import org.springframework.stereotype.Controller;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 @Slf4j
@@ -31,6 +32,9 @@ public class WebSocketController {
     private final ConversationRepository conversationRepository;
     private final AgentRepository agentRepository;
 
+    /** 正在处理中的会话 — 防止并发重复调用导致消息重复入库 */
+    private final ConcurrentHashMap<String, Boolean> activeConversations = new ConcurrentHashMap<>();
+
     @Value("${agent.workspace.root:${user.home}/agenthub_workspaces}")
     private String workspaceRoot;
 
@@ -39,6 +43,12 @@ public class WebSocketController {
         String conversationId = request.getConversationId();
         String content = request.getContent();
         if (content == null || content.isBlank()) return;
+
+        // 防止同一会话并发处理导致消息重复入库
+        if (activeConversations.putIfAbsent(conversationId, Boolean.TRUE) != null) {
+            log.warn("Conversation {} is already being processed, skipping duplicate", conversationId);
+            return;
+        }
 
         String topic = "/topic/conversation." + conversationId;
         log.info("Processing message: conversationId={}, topic={}, contentLen={}",
@@ -108,6 +118,7 @@ public class WebSocketController {
                     log.error("Agent error: {}", token.getError());
                     String friendlyMsg = friendlyErrorMessage(agentType, token.getError());
                     messagingTemplate.convertAndSend(topic, errorChunk(friendlyMsg));
+                    activeConversations.remove(conversationId);
                     return;
                 }
 
@@ -123,6 +134,7 @@ public class WebSocketController {
                             log.info("Skip saving agent response — conversation already deleted: id={}", conversationId);
                         }
                         pushFinish(topic, agentType, token);
+                        activeConversations.remove(conversationId);
                     } else {
                         // 还没收到 token 就 finish 了 — 延迟 2s 确认（给慢启动的 Agent 时间）
                         log.info("Finish before any token — scheduling delayed fallback check, topic={}", topic);
@@ -150,11 +162,13 @@ public class WebSocketController {
                                 messagingTemplate.convertAndSend(topic, fallback);
                             }
                             pushFinish(topic, agentType, token);
+                            activeConversations.remove(conversationId);
                         });
                     }
                 }
             } catch (Exception e) {
                 log.error("Failed to push chunk", e);
+                activeConversations.remove(conversationId);
             }
         });
     }
