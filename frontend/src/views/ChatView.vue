@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { watch, onMounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { watch, onMounted, onBeforeUnmount } from 'vue'
+import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import ChatList from '../components/chat/ChatList.vue'
 import ChatWindow from '../components/chat/ChatWindow.vue'
 import ArtifactWindow from '../components/chat/ArtifactWindow.vue'
@@ -20,7 +20,27 @@ watch(
   // 去掉 immediate:true — 改为 onMounted 中先加载列表再选择
 )
 
+// ===================================================================
+// 流式进行中阻止刷新/关闭/导航离开
+// ===================================================================
+function handleBeforeUnload(e: BeforeUnloadEvent) {
+  if (chatStore.isLoading) {
+    e.preventDefault()
+  }
+}
+
+// Vue Router 内部导航也阻止（点击侧边栏/会话列表等）
+onBeforeRouteLeave((_to, _from) => {
+  if (chatStore.isLoading) {
+    return window.confirm('Agent 正在生成回复，确定要离开当前会话吗？')
+  }
+  return true
+})
+
 onMounted(async () => {
+  // 流式进行中阻止刷新/关闭浏览器
+  window.addEventListener('beforeunload', handleBeforeUnload)
+
   chatStore.mobileView = 'list'
   await chatStore.loadConversationList()  // 先加载会话列表
   chatStore.loadAgents()                  // REST API: GET /agents
@@ -31,6 +51,10 @@ onMounted(async () => {
   if (id && typeof id === 'string') {
     chatStore.selectConversation(id)
   }
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('beforeunload', handleBeforeUnload)
 })
 </script>
 
