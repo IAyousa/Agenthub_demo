@@ -78,7 +78,20 @@
     </header>
 
     <div class="w-full h-full pt-24 relative">
-      <svg viewBox="0 0 900 550" class="w-full h-full" @click="onSceneClick">
+      <!-- 无办公室空状态 — 对齐聊天页空状态设计 -->
+      <div v-if="offices.length === 0" class="absolute inset-0 pt-24 flex items-center justify-center z-10 bg-transparent">
+        <div class="text-center">
+          <div class="w-20 h-20 mx-auto mb-5 rounded-2xl flex items-center justify-center bg-gradient-to-br from-indigo-100 to-purple-100">
+            <svg class="w-10 h-10 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+            </svg>
+          </div>
+          <h2 class="text-lg font-semibold text-gray-600 mb-2">选择一个办公室开始协作</h2>
+          <p class="text-sm text-gray-400">点击右上角「新建办公室」按钮创建，或从聊天群聊自动同步</p>
+        </div>
+      </div>
+
+      <svg viewBox="0 0 900 550" class="w-full h-full" :class="{ 'opacity-30': offices.length === 0 }" @click="onSceneClick">
         <!-- 背景渐变定义 -->
         <defs>
           <linearGradient id="floorGrad" x1="0%" y1="0%" x2="0%" y2="100%">
@@ -593,20 +606,26 @@ const route = useRoute()
 onMounted(async () => {
   chatStore.initWebSocket()
   await chatStore.loadConversationList()
+  chatStore.loadAgents()  // 确保 syncOffices 可匹配 Agent 名称还原成员
 
-  // Reconstruct offices from group conversations
+  // 从群聊会话同步办公室
   chatStore.syncOfficesFromConversations()
 
+  // 路由指定了会话 → 定位到对应办公室并打开聊天
   const convId = route.params.conversationId as string | undefined
   if (convId) {
     const office = offices.value.find(o => o.conversationId === convId)
     if (office) {
       switchOffice(office.id)
       isChatOpen.value = true
-      nextTick(() => {
-        chatStore.openOfficeChat(office.id)
-      })
+      nextTick(() => chatStore.openOfficeChat(office.id))
+      return
     }
+  }
+
+  // 无路由指定 → 自动选中第一个办公室
+  if (offices.value.length > 0 && !currentOfficeId.value) {
+    switchOffice(offices.value[0].id)
   }
 })
 
