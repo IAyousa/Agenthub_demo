@@ -244,8 +244,20 @@ export const useChatStore = defineStore('chat', () => {
         streamMsg.metadata = { ...chunk.metadata }
       }
       streamingMessageId.value = null
-      isLoading.value = false
       tokenQueue = []
+
+      // 文本流结束 → 延迟关闭 loading，给 project_bundle 卡片留到达窗口
+      if (chunk.messageType !== 'project_bundle') {
+        if (loadingDelayTimer) clearTimeout(loadingDelayTimer)
+        loadingDelayTimer = setTimeout(() => {
+          isLoading.value = false
+          loadingDelayTimer = null
+        }, 3000)
+      } else {
+        // project_bundle 到达 → 立即关闭 loading
+        if (loadingDelayTimer) { clearTimeout(loadingDelayTimer); loadingDelayTimer = null }
+        isLoading.value = false
+      }
     } else {
       tokenQueue.push(chunk.content)
       currentAgentId.value = chunk.agentId
@@ -279,6 +291,7 @@ export const useChatStore = defineStore('chat', () => {
 
   const handleWsError = (err: string) => {
     if (sendTimeout) { clearTimeout(sendTimeout); sendTimeout = null }
+    if (loadingDelayTimer) { clearTimeout(loadingDelayTimer); loadingDelayTimer = null }
     error.value = err
     isLoading.value = false
   }
@@ -516,6 +529,7 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   let sendTimeout: ReturnType<typeof setTimeout> | null = null
+  let loadingDelayTimer: ReturnType<typeof setTimeout> | null = null
 
   /**
    * 创建新会话，返回新会话的 ID。
@@ -774,6 +788,7 @@ export const useChatStore = defineStore('chat', () => {
     isMessagesLoading.value = false
     error.value = null
     if (sendTimeout) { clearTimeout(sendTimeout); sendTimeout = null }
+    if (loadingDelayTimer) { clearTimeout(loadingDelayTimer); loadingDelayTimer = null }
   }
 
   return {
