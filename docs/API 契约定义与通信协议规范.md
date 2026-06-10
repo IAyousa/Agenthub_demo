@@ -1,6 +1,6 @@
 # AgentHub 技术框架文档 — API 契约定义与通信协议规范
 
-> **版本**: v1.2
+> **版本**: v1.3\
 > **最后更新**: 2026-06-10
 
 ---
@@ -531,6 +531,59 @@ Agent 生成代码 → Python Agent 服务接收 stdout
   → WebSocket 推送 preview_card 给前端（含预览 URL）
   → 前端 iframe 加载 URL 预览
 ```
+#### 2.4.5 批量内部产物创建（Python → Java，PR#14 新增）
+```http
+POST /internal/artifacts/batch
+```
+> 用于 workspace_scanner 和 artifact_uploader 一次性上传多个文件，Java 侧合并推送一条 project_bundle WebSocket 消息（1.5s 延迟确保文本先到）。
+##### 请求体（JSON 数组）：
+```json
+[
+  {
+    "conversationId": "conv_abc123",
+    "messageId": "msg_002",
+    "filename": "index.html",
+    "content": "<!DOCTYPE html>...",
+    "contentType": "text/html"
+  },
+  {
+    "conversationId": "conv_abc123",
+    "messageId": "msg_002",
+    "filename": "style.css",
+    "content": "body { ... }",
+    "contentType": "text/css"
+  }
+]
+```
+##### 成功响应（201）：
+```json
+{
+  "files": [
+    { "artifactId": "art_003", "filename": "index.html", "path": "index.html", "language": "html", "previewUrl": "/artifacts/art_003", "size": 1084 },
+    { "artifactId": "art_004", "filename": "style.css", "path": "style.css", "language": "css", "previewUrl": "/artifacts/art_004", "size": 3931 }
+  ],
+  "total": 2
+}
+```
+#### 2.4.6 按会话+文件名查找产物（PR#14 新增）
+```http
+GET /artifacts/conversation/{conversationId}/{filename}
+```
+> 用于 iframe 中 HTML 的相对引用（如 `<link href="style.css">`）资源解析。按会话 ID + 文件名查找 artifact，返回最新版本文件内容。
+##### 路径参数：
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| conversationId | string | 会话 ID |
+| filename | string | 文件名（如 `style.css`） |
+##### 成功响应（200）：`Content-Type: text/css`（根据文件 MIME 类型自适应）
+##### 错误响应（404）：文件不存在
+#### 2.4.7 下载会话全部项目文件（PR#14 新增）
+```http
+GET /conversations/{conversationId}/download
+```
+> 将工作目录下全部文件打包为 ZIP 下载。跳过 node_modules、.git、.claude 等忽略目录。
+##### 成功响应（200）：`Content-Type: application/zip, Content-Disposition: attachment; filename="project_{id}.zip"`
+##### 错误响应（404）：工作目录不存在
 ---
  ## 3. WebSocket 协议（前端 ↔ Spring Boot）
 ### 3.1 连接配置（与实际代码完全对齐）
@@ -585,7 +638,7 @@ Agent 生成代码 → Python Agent 服务接收 stdout
 | isComplete | boolean | false=流式传输中，true=本条消息发送完毕 |
 | agentId | string | **每个 chunk 都携带**，发送此消息的 Agent ID，前端据此区分不同 Agent 发言并切换头像，确保 agent_switch 丢失也能正确渲染 |
 | agentName | string | **每个 chunk 都携带**，发送此消息的 Agent 名称，冗余保障 |
-| messageType | string | 消息类型：text / code / diff / preview_card / error |
+| messageType | string | 消息类型：text / code / diff / preview_card / project_bundle / error |
 | messageId | string | 消息 ID（isComplete=true 时返回，用于后续操作） |
 | type | string | chunk / agent_switch / finish 事件类型标识 |
 
@@ -618,6 +671,12 @@ t=1.6s  收到 Codex 的第 1 个 chunk → 气泡头像切换为 Codex
 ...
 t=3.0s  收到最终 chunk → 流式气泡消失，消息固化到列表
         {"content": "完整回复内容...", "isComplete": true, "messageId": "msg_002"}
+t=4.5s  收到 project_bundle 卡片（1.5s 延迟确保文本先到）
+        {"type": "chunk", "content": "项目成果已生成，共 3 个文件", "isComplete": true,
+         "messageType": "project_bundle", "metadata": {"files": [
+           {"artifactId": "art_003", "filename": "index.html", "path": "index.html", "language": "html", "previewUrl": "/artifacts/art_003", "size": 1084},
+           {"artifactId": "art_004", "filename": "style.css", "path": "style.css", "language": "css", "previewUrl": "/artifacts/art_004", "size": 3931}
+         ]}}
 ```
 ---
 ## 4. 内部 HTTP 接口（Spring Boot ↔ FastAPI）
