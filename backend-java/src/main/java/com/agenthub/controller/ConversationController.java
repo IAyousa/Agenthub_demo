@@ -49,8 +49,7 @@ public class ConversationController {
 
     @Data
     public static class UpdateConversationAgentsRequest {
-        @NotEmpty(message = "agentIds 不能为空")
-        private List<String> agentIds;
+        private List<String> agentIds = Collections.emptyList();
     }
 
     @Data
@@ -165,12 +164,18 @@ public class ConversationController {
     public ResponseEntity<Map<String, Object>> updateAgents(
             @PathVariable String id,
             @Valid @RequestBody UpdateConversationAgentsRequest request) {
+        // 逐个移除现有 Agent → 添加新 Agent → 每个操作独立事务保证持久化
         Conversation conversation = conversationService.getConversationById(id);
-        conversation.getAgents().clear();
-
+        List<String> existingIds = conversation.getAgents().stream()
+                .map(Agent::getId).collect(Collectors.toList());
+        for (String agentId : existingIds) {
+            conversationService.removeAgentFromConversation(id, agentId);
+        }
         for (String agentId : request.getAgentIds()) {
             conversation = conversationService.addAgentToConversation(id, agentId);
         }
+        // 重新获取最新状态用于响应
+        conversation = conversationService.getConversationById(id);
 
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("id", conversation.getId());
