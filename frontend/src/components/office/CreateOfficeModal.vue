@@ -59,6 +59,39 @@
               </div>
             </div>
 
+            <!-- Agent 选择 -->
+            <div>
+              <label class="block text-sm font-semibold text-slate-700 mb-3">
+                选择参与 Agent <span class="text-slate-400 font-normal text-xs ml-1">(已选 {{ formData.selectedAgentIds.length }} 个)</span>
+              </label>
+              <div v-if="agents.length === 0" class="text-sm text-slate-400 py-3 text-center">
+                暂无可用的 Agent
+              </div>
+              <div v-else class="space-y-2 max-h-40 overflow-y-auto">
+                <label
+                  v-for="agent in agents"
+                  :key="agent.id"
+                  :class="[
+                    'flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all',
+                    formData.selectedAgentIds.includes(agent.id)
+                      ? 'border-indigo-400 bg-indigo-50'
+                      : 'border-slate-100 hover:border-slate-200 bg-white'
+                  ]"
+                >
+                  <input
+                    type="checkbox"
+                    :checked="formData.selectedAgentIds.includes(agent.id)"
+                    @change="toggleAgent(agent.id)"
+                    class="w-4 h-4 rounded accent-indigo-600"
+                  />
+                  <div class="flex-1">
+                    <div class="text-sm font-semibold text-slate-700">{{ agent.name }}</div>
+                    <div class="text-xs text-slate-400">{{ agent.type === 'claude_code' ? 'Claude Code' : agent.type === 'codex' ? 'Codex' : agent.type }}</div>
+                  </div>
+                </label>
+              </div>
+            </div>
+
           </div>
 
           <!-- Footer -->
@@ -91,6 +124,8 @@
 
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
+import { storeToRefs } from 'pinia'
+import { useChatStore } from '../../stores/chat'
 
 interface Props {
   isOpen: boolean
@@ -98,22 +133,34 @@ interface Props {
 
 interface Emits {
   (e: 'close'): void
-  (e: 'create', data: { name: string; description: string; maxMembers: number }): void
+  (e: 'create', data: { name: string; description: string; maxMembers: number; agentIds: string[] }): void
 }
 
 defineProps<Props>()
 const emit = defineEmits<Emits>()
+const chatStore = useChatStore()
+const { agents } = storeToRefs(chatStore)
 
 const isLoading = ref(false)
 const formData = reactive({
   name: '',
   description: '',
   maxMembers: 8,
+  selectedAgentIds: [] as string[],
 })
 
 const errors = reactive({
   name: ''
 })
+
+const toggleAgent = (agentId: string) => {
+  const idx = formData.selectedAgentIds.indexOf(agentId)
+  if (idx >= 0) {
+    formData.selectedAgentIds.splice(idx, 1)
+  } else {
+    formData.selectedAgentIds.push(agentId)
+  }
+}
 
 const closeModal = () => {
   resetForm()
@@ -124,12 +171,13 @@ const resetForm = () => {
   formData.name = ''
   formData.description = ''
   formData.maxMembers = 8
+  formData.selectedAgentIds = []
   errors.name = ''
 }
 
 const createOffice = async () => {
   errors.name = ''
-  
+
   if (!formData.name.trim()) {
     errors.name = '请输入办公室名称'
     return
@@ -141,16 +189,17 @@ const createOffice = async () => {
   }
 
   isLoading.value = true
-  
+
   // 模拟API调用
   await new Promise(resolve => setTimeout(resolve, 800))
-  
+
   emit('create', {
     name: formData.name,
     description: formData.description,
     maxMembers: formData.maxMembers,
+    agentIds: formData.selectedAgentIds,
   })
-  
+
   isLoading.value = false
   resetForm()
 }

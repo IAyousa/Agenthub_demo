@@ -963,7 +963,7 @@ const confirmDisbandOffice = () => {
 }
 
 // 处理新建办公室
-const handleCreateOffice = async (data: { name: string; description: string; maxMembers: number }) => {
+const handleCreateOffice = async (data: { name: string; description: string; maxMembers: number; agentIds: string[] }) => {
   await chatStore.createOffice(data)
   showCreateModal.value = false
   isChatOpen.value = false

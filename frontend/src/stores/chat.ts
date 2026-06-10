@@ -684,14 +684,27 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
-  async function createOffice(data: { name: string; description: string; maxMembers: number }) {
+  async function createOffice(data: { name: string; description: string; maxMembers: number; agentIds: string[] }) {
     let conversationId: string | undefined
     try {
-      const conv = await apiCreateConversation({ title: data.name, type: 'group', agentIds: [] })
+      const conv = await apiCreateConversation({ title: data.name, type: 'group', agentIds: data.agentIds })
       conversationId = conv.data.id
     } catch {
       // API 不可用时仍创建本地 office（无关联会话）
     }
+    // 将选中的 Agent 同步为办公室初始成员
+    const agentMembers: OfficeMember[] = data.agentIds.map((agentId, i) => {
+      const agent = agents.value.find(a => a.id === agentId)
+      return {
+        id: agentId,
+        name: agent?.name || agentId,
+        avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${agentId}`,
+        role: 'member' as const,
+        status: 'online' as const,
+        lastActive: '刚刚',
+        seatIndex: i + 1,
+      }
+    })
     const newOffice: Office = {
       id: `office-${Date.now()}`,
       name: data.name,
@@ -703,6 +716,7 @@ export const useChatStore = defineStore('chat', () => {
       ownerId: '1',
       members: [
         { id: '1', name: '你', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix', role: 'owner', status: 'online', lastActive: '刚刚' },
+        ...agentMembers,
       ],
       availableUsers: [],
     }
